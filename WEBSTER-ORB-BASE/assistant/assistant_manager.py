@@ -197,6 +197,11 @@ class AssistantManager(QObject):
             logger.exception("Smriti could not be initialized.")
             self.log.emit("Smriti is unavailable. Conversation history still works.")
 
+        # Connect persistent memory to the command router. Keep the router
+        # available even when Smriti initialization fails so its commands
+        # can return a controlled "unavailable" response.
+        self.router.set_memory_provider(self.memory)
+
         # Listening state
         self._listen_cancelled = False
 
