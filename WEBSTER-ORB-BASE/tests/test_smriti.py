@@ -3,11 +3,13 @@
 
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from pathlib import Path
 
 from memory import Smriti, SmritiError
 from assistant.commands import CommandRouter
+from assistant.assistant_manager import AssistantManager
 
 
 class TestSmriti(unittest.TestCase):
@@ -163,6 +165,15 @@ class TestSmritiCommandRouter(unittest.TestCase):
             self.memory.get("project")["memory_value"],
             "WEBSTER",
         )
+
+
+    def test_assistant_manager_connects_smriti_to_router(self):
+        with patch("assistant.assistant_manager.Smriti", return_value=self.memory), \
+             patch("assistant.assistant_manager.create_engine"), \
+             patch("assistant.assistant_manager.SpeechEngine"):
+            manager = AssistantManager()
+
+        self.assertIs(manager.router._memory, manager.memory)
 
 
 if __name__ == "__main__":
