@@ -6,7 +6,9 @@ import unittest
 from unittest.mock import patch
 
 import config
-from assistant.ai_engine import GeminiEngine, OfflineEngine, Turn, create_engine
+from assistant.ai_engine import (
+    ClaudeEngine, GeminiEngine, OfflineEngine, OllamaEngine, Turn, create_engine,
+)
 
 
 class TestGeminiEngine(unittest.TestCase):
@@ -96,6 +98,30 @@ class TestGeminiEngine(unittest.TestCase):
 
         self.assertIsInstance(engine, OfflineEngine)
         self.assertIn("GEMINI_API_KEY", engine.reason)
+
+
+    def test_create_engine_selects_ollama(self):
+        with patch.object(config.AI, "provider", "ollama"):
+            engine = create_engine()
+
+        self.assertIsInstance(engine, OllamaEngine)
+
+    def test_create_engine_selects_claude_when_key_is_configured(self):
+        with patch.object(config.AI, "provider", "claude"), patch(
+            "config.anthropic_api_key", return_value="test-anthropic-key"
+        ):
+            engine = create_engine()
+
+        self.assertIsInstance(engine, ClaudeEngine)
+
+    def test_claude_without_key_uses_offline_engine(self):
+        with patch.object(config.AI, "provider", "claude"), patch(
+            "config.anthropic_api_key", return_value=""
+        ):
+            engine = create_engine()
+
+        self.assertIsInstance(engine, OfflineEngine)
+        self.assertIn("ANTHROPIC_API_KEY", engine.reason)
 
 
 if __name__ == "__main__":
