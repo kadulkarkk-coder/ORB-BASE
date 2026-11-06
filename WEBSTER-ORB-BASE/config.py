@@ -263,7 +263,8 @@ def ollama_is_local() -> bool:
     return any(marker in host for marker in ("localhost", "127.0.0.1", "0.0.0.0", "::1"))
 
 def gemini_api_key() -> str:
-    return _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY")
+    # Match the official SDK's precedence when both variables are present.
+    return _env("GOOGLE_API_KEY") or _env("GEMINI_API_KEY")
 
 
 def anthropic_api_key() -> str:
