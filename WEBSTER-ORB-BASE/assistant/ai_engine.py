@@ -2,10 +2,9 @@
 
 `AIEngine` is the seam: the GUI only ever calls `process()`, so a different
 model or a local runtime can be dropped in without touching the interface.
-Four implementations ship here — OpenAI via the `openai` SDK (the default),
-Ollama for local or self-hosted models (same wire protocol, different endpoint),
-Claude via the Anthropic SDK, and an offline engine used when nothing is
-configured, so the HUD is always usable.
+Gemini and OpenAI use their official SDKs; Ollama uses its
+OpenAI-compatible endpoint; Claude is an optional Anthropic backend; and
+offline mode keeps local commands usable when no provider is configured.
 """
 
 from __future__ import annotations
