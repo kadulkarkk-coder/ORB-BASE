@@ -173,7 +173,10 @@ class GeminiEngine(AIEngine):
                 )
             return AIResult("", self.name, ok=False, error=message)
 
-        text = (getattr(response, "text", None) or "").strip()
+        try:
+            text = (getattr(response, "text", None) or "").strip()
+        except (AttributeError, ValueError):
+            text = ""
         if not text:
             return AIResult(
                 "", self.name, ok=False,
