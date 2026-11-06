@@ -84,6 +84,105 @@ class OfflineEngine(AIEngine):
         )
 
 
+
+
+class GeminiEngine(AIEngine):
+    """Google Gemini backend using the official google-genai SDK."""
+
+    name = "gemini"
+
+    def __init__(self, model: str | None = None) -> None:
+        self.model = model or config.AI.gemini_model
+        self._client = None
+
+    @property
+    def available(self) -> bool:
+        return bool(config.gemini_api_key())
+
+    def _ensure_client(self):
+        if self._client is None:
+            try:
+                from google import genai
+            except ImportError as exc:
+                raise RuntimeError(
+                    "The 'google-genai' package is not installed "
+                    "(pip install google-genai)."
+                ) from exc
+            self._client = genai.Client(api_key=config.gemini_api_key())
+        return self._client
+
+    def _contents(self, prompt: str, history: list[Turn] | None):
+        from google.genai import types
+
+        contents = []
+        for turn in (history or [])[-config.AI.history_limit:]:
+            text = (turn.content or "").strip()
+            if not text or turn.role not in {"user", "assistant", "model"}:
+                continue
+            role = "model" if turn.role in {"assistant", "model"} else "user"
+            contents.append(
+                types.Content(role=role, parts=[types.Part(text=text)])
+            )
+        contents.append(
+            types.Content(role="user", parts=[types.Part(text=prompt)])
+        )
+        return contents
+
+    def process(self, prompt: str, history: list[Turn] | None = None) -> AIResult:
+        if not config.gemini_api_key():
+            return AIResult(
+                "", self.name, ok=False,
+                error="GEMINI_API_KEY is not configured.",
+            )
+        if not (prompt or "").strip():
+            return AIResult("Please enter a message.", self.name)
+
+        try:
+            from google.genai import types
+
+            response = self._ensure_client().models.generate_content(
+                model=self.model,
+                contents=self._contents(prompt.strip(), history),
+                config=types.GenerateContentConfig(
+                    system_instruction=config.AI.system_prompt,
+                    max_output_tokens=config.AI.max_tokens,
+                ),
+            )
+        except ImportError:
+            return AIResult(
+                "", self.name, ok=False,
+                error="The 'google-genai' package is not installed "
+                      "(pip install google-genai).",
+            )
+        except Exception as exc:
+            code = getattr(exc, "code", None)
+            if code in (401, 403):
+                message = "Gemini authentication failed. Check GEMINI_API_KEY."
+            elif code == 404:
+                message = (
+                    f"Gemini model '{self.model}' was not found or is not "
+                    "available to this API key."
+                )
+            elif code == 429:
+                message = "Gemini rate limit or quota reached. Try again later."
+            elif isinstance(exc, RuntimeError) and "google-genai" in str(exc):
+                message = str(exc)
+            else:
+                message = (
+                    "Gemini request failed. Check your connection, model name, "
+                    "API quota, and API key."
+                )
+            return AIResult("", self.name, ok=False, error=message)
+
+        text = (getattr(response, "text", None) or "").strip()
+        if not text:
+            return AIResult(
+                "", self.name, ok=False,
+                error="Gemini returned no text. The response may have been blocked.",
+            )
+        return AIResult(text, self.name)
+
+
 class OpenAIEngine(AIEngine):
     """OpenAI backend, via the official `openai` SDK.
 
@@ -344,12 +443,15 @@ class ClaudeEngine(AIEngine):
 def create_engine() -> AIEngine:
     """Pick a backend from configuration, falling back to offline.
 
-    `JARVIS_AI_PROVIDER=auto` (the default) uses whichever key is present,
-    preferring OpenAI. Naming a provider explicitly never silently substitutes
+    `JARVIS_AI_PROVIDER=auto` prefers Gemini, then OpenAI, when a key is present.
+    Naming a provider explicitly never silently substitutes
     the other one — if its key is missing you get the offline engine and the
     reason, rather than an answer from a backend you did not choose.
     """
     provider = config.resolved_provider()
+    if provider == "gemini":
+        problem = config.api_key_problem()
+        return GeminiEngine() if problem is None else OfflineEngine(problem)
     if provider == "offline":
         problem = config.api_key_problem()
         return OfflineEngine(problem or "Offline mode is selected in configuration.")
