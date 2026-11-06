@@ -205,6 +205,14 @@ class AIConfig:
     openai_model: str = field(
         default_factory=lambda: _env("OPENAI_MODEL", "gpt-4o-mini")
     )
+
+    ollama_model: str = field(
+        default_factory=lambda: _env("OLLAMA_MODEL", "llama3.2")
+    )
+
+    anthropic_model: str = field(
+        default_factory=lambda: _env("ANTHROPIC_MODEL", "claude-sonnet-4-5")
+    )
     
     max_tokens: int = 1024
     system_prompt: str = (
@@ -258,6 +266,16 @@ def gemini_api_key() -> str:
     return _env("GEMINI_API_KEY") or _env("GOOGLE_API_KEY")
 
 
+def anthropic_api_key() -> str:
+    return _env("ANTHROPIC_API_KEY")
+
+
+def anthropic_key_problem() -> str | None:
+    if not anthropic_api_key():
+        return "ANTHROPIC_API_KEY is not configured."
+    return None
+
+
 def resolved_provider() -> str:
     """Resolve the configured provider, preferring Gemini in auto mode."""
 
@@ -276,7 +294,7 @@ def resolved_provider() -> str:
 
     choice = aliases.get(choice, choice)
 
-    if choice in ("gemini", "openai", "ollama", "offline"):
+    if choice in ("gemini", "openai", "ollama", "claude", "offline"):
         return choice
 
     if choice == "auto":
@@ -284,6 +302,8 @@ def resolved_provider() -> str:
             return "gemini"
         if openai_api_key():
             return "openai"
+        if anthropic_api_key():
+            return "claude"
         return "offline"
 
     return "offline"
@@ -313,6 +333,9 @@ def api_key_problem() -> str | None:
 
     if provider == "openai":
         return openai_key_problem()
+
+    if provider == "claude":
+        return anthropic_key_problem()
 
     if provider in ("ollama", "offline"):
         return None
