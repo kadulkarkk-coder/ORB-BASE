@@ -199,7 +199,7 @@ class AIConfig:
     )
 
     gemini_model: str = field(
-        default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.5-flash")
+        default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash")
     )
 
     openai_model: str = field(
