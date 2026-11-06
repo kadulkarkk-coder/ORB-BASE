@@ -7,6 +7,7 @@ import unittest
 from pathlib import Path
 
 from memory import Smriti, SmritiError
+from assistant.commands import CommandRouter
 
 
 class TestSmriti(unittest.TestCase):
@@ -112,6 +113,56 @@ class TestSmriti(unittest.TestCase):
         self.assertIn("created_at", result)
         self.assertIn("updated_at", result)
         self.assertIn("id", result)
+
+
+class TestSmritiCommandRouter(unittest.TestCase):
+    """Verify explicit memory commands through the same router used by WEBSTER."""
+
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.database = Path(self.temp_dir.name) / "router_smriti.db"
+        self.memory = Smriti(database_path=self.database)
+        self.router = CommandRouter(memory_provider=self.memory)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_remember_recall_list_and_forget(self):
+        saved = self.router.route("remember favorite_language = Python")
+        self.assertTrue(saved.handled)
+        self.assertIn("saved", saved.text.lower())
+
+        recalled = self.router.route("recall favorite_language")
+        self.assertTrue(recalled.handled)
+        self.assertIn("Python", recalled.text)
+
+        listed = self.router.route("list memories")
+        self.assertTrue(listed.handled)
+        self.assertIn("favorite_language: Python", listed.text)
+
+        forgotten = self.router.route("forget favorite_language")
+        self.assertTrue(forgotten.handled)
+        self.assertIsNone(self.memory.get("favorite_language"))
+
+    def test_memory_commands_return_controlled_error_when_unavailable(self):
+        router = CommandRouter(memory_provider=None)
+
+        result = router.route("recall missing_key")
+
+        self.assertTrue(result.handled)
+        self.assertIn("unavailable", result.text.lower())
+
+    def test_router_can_receive_memory_provider_after_initialization(self):
+        router = CommandRouter()
+        router.set_memory_provider(self.memory)
+
+        result = router.route("remember project = WEBSTER")
+
+        self.assertTrue(result.handled)
+        self.assertEqual(
+            self.memory.get("project")["memory_value"],
+            "WEBSTER",
+        )
 
 
 if __name__ == "__main__":
