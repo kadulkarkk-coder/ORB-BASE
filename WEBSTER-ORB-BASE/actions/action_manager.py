@@ -106,8 +106,16 @@ class ActionManager:
             return None
         return next((item for item in self.discover() if item.action_id == action_id), None)
 
-    def execute(self, action_id: str, *, expected_hash: str | None = None) -> str:
-        """Import and run an action only if its reviewed file has not changed."""
+    def execute(
+        self,
+        action_id: str,
+        *,
+        expected_hash: str | None = None,
+        arguments: str = "",
+    ) -> str:
+        """Import and run a reviewed action with its confirmed text arguments."""
+        if not isinstance(arguments, str) or len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
+            raise ActionError("Action arguments must be a single line of at most 2048 characters.")
         info = self.get(action_id)
         if info is None:
             raise ActionError("That action is missing, invalid, or ambiguous.")
@@ -127,6 +135,8 @@ class ActionManager:
             source = source_bytes.decode("utf-8")
             module = ModuleType(module_name)
             module.__file__ = str(info.path)
+            # Supplied only after the caller has obtained explicit confirmation.
+            module.ACTION_ARGUMENTS = arguments
             sys.modules[module_name] = module
             exec(compile(source, str(info.path), "exec"), module.__dict__)
             run = getattr(module, "run", None)
