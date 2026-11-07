@@ -5,6 +5,8 @@ import unittest
 from pathlib import Path
 
 from actions import ActionError, ActionManager
+from assistant.commands import CommandRouter
+from system.niyantrak import Niyantrak, PermissionStatus
 
 
 class TestActionManager(unittest.TestCase):
@@ -55,6 +57,52 @@ class TestActionManager(unittest.TestCase):
         self.write_action("wrong.py", 'ACTION_ID = "wrong_type"\nDESCRIPTION = "Wrong return"\ndef run(): return 42\n')
         with self.assertRaises(ActionError):
             self.manager.execute("wrong_type")
+
+
+
+class TestActionCommandsAndPermissions(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.folder = Path(self.temp_dir.name)
+        self.manager = ActionManager(self.folder)
+        (self.folder / "hello.py").write_text(
+            'ACTION_ID = "hello_action"\n'
+            'DESCRIPTION = "A harmless test action"\n'
+            'def run(): return "hello executed"\n',
+            encoding="utf-8",
+        )
+        self.router = CommandRouter(action_provider=self.manager)
+        self.policy = Niyantrak()
+        self.policy.register_extension_action("extension:hello_action")
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_list_actions_command(self):
+        result = self.router.route("actions")
+        self.assertTrue(result.handled)
+        self.assertIn("hello_action", result.text)
+
+    def test_run_action_requires_explicit_confirmation(self):
+        result = self.router.route("run action hello_action")
+        self.assertTrue(result.handled)
+        self.assertTrue(result.requires_confirmation)
+        self.assertEqual(result.action_id, "extension:hello_action")
+        self.assertEqual(
+            self.policy.evaluate(result.action_id).status,
+            PermissionStatus.CONFIRMATION_REQUIRED,
+        )
+        self.assertTrue(self.policy.evaluate(result.action_id, confirmed=True).allowed)
+
+    def test_unregistered_extension_action_is_denied(self):
+        self.assertEqual(
+            self.policy.evaluate("extension:not_registered", confirmed=True).status,
+            PermissionStatus.DENIED,
+        )
+
+    def test_extension_registration_rejects_malformed_ids(self):
+        self.assertFalse(self.policy.register_extension_action("open_url"))
+        self.assertFalse(self.policy.register_extension_action("extension:../bad"))
 
 
 if __name__ == "__main__":
