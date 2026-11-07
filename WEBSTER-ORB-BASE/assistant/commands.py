@@ -256,7 +256,7 @@ class CommandRouter:
             True,
             f"Run action '{item.action_id}'?\n{item.description}\n\nThis action runs as your current user after confirmation.",
             requires_confirmation=True,
-            action=lambda: self._actions.execute(item.action_id),
+            action=lambda: self._actions.execute(item.action_id, expected_hash=item.content_hash),
             action_id=item.permission_id,
         )
 
