@@ -36,7 +36,8 @@ from assistant.commands import CommandRouter, CommandResult
 from assistant.karya import Karya
 from system.niyantrak import Niyantrak, PermissionStatus
 from assistant.speech import SpeechEngine
-from memory import Smriti, SmritiError 
+from memory import Smriti, SmritiError
+from knowledge import Gyaan, GyaanError
 
 logger = logging.getLogger(__name__)
 
@@ -151,6 +152,17 @@ class AssistantManager(QObject):
         # can return a controlled "unavailable" response.
         self.router.set_memory_provider(self.memory)
 
+        # Gyaan is a separate, source-aware knowledge store; it is not personal memory.
+        try:
+            self.gyaan = Gyaan()
+            logger.info("Gyaan knowledge store initialized.")
+            self.log.emit("Gyaan knowledge store online.")
+        except (GyaanError, OSError):
+            self.gyaan = None
+            logger.exception("Gyaan could not be initialized.")
+            self.log.emit("Gyaan is unavailable. Core assistant functions remain online.")
+        self.router.set_gyaan_provider(self.gyaan)
+
         # Listening state
         self._listen_cancelled = False
 
@@ -249,6 +261,34 @@ class AssistantManager(QObject):
     def memory_count(self) -> int:
         """Return the number of saved memories."""
         return self._require_memory().count()
+
+    # =================================================================
+    # GYAAN — SOURCE-AWARE KNOWLEDGE INTERFACE
+    # =================================================================
+
+    def _require_gyaan(self) -> Gyaan:
+        if self.gyaan is None:
+            raise GyaanError("Gyaan is unavailable. Check the knowledge database.")
+        return self.gyaan
+
+    def add_knowledge(
+        self, title: str, content: str, source: str = "User-provided", tags: str = ""
+    ) -> int:
+        """Explicitly add or update a source-labelled knowledge item."""
+        return self._require_gyaan().add(title, content, source, tags)
+
+    def search_knowledge(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
+        """Search local knowledge; each result includes source attribution."""
+        return self._require_gyaan().search(query, limit)
+
+    def list_knowledge(self, limit: int = 100) -> list[dict[str, Any]]:
+        return self._require_gyaan().list_items(limit)
+
+    def delete_knowledge(self, title: str) -> bool:
+        return self._require_gyaan().delete(title)
+
+    def knowledge_count(self) -> int:
+        return self._require_gyaan().count()
 
     # =================================================================
     # TEXT INPUT
