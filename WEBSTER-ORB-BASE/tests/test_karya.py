@@ -94,6 +94,19 @@ class TestKarya(unittest.TestCase):
         self.assertTrue(all(h.state == TaskState.SUCCEEDED for h in extra))
         self.assertEqual(len(small_history.list_tasks()), 2)
 
+    def test_prepared_task_can_connect_handlers_before_start(self):
+        handle = self.karya.submit(
+            lambda: "ready",
+            task_name="prepared-task",
+            auto_start=False,
+        )
+
+        self.assertEqual(handle.state, TaskState.QUEUED)
+        self.assertTrue(handle.start())
+        self.assertFalse(handle.start())
+        self.assertTrue(self.pool.waitForDone(3000))
+        self.assertEqual(handle.state, TaskState.SUCCEEDED)
+
     def test_non_callable_tasks_are_rejected(self):
         with self.assertRaises(TypeError):
             self.karya.submit("not callable")
