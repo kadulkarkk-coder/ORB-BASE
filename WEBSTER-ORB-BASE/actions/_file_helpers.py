@@ -374,7 +374,7 @@ def search_text_in_folder(raw: str) -> str:
             break
     if not matches:
         return f"No matches found in the bounded text search (checked up to {inspected} files)."
-    return "Matches (up to 30; maximum depth 3):\\n" + "\\n".join(matches)
+    return "Matches (up to 30; maximum depth 3):\n" + "\n".join(matches)
 
 def validate_json_file(raw: str) -> str:
     import json
