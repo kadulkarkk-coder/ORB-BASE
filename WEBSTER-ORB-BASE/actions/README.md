@@ -145,3 +145,59 @@ volume and temperature units. All actions remain behind explicit confirmation.
 - `run action disk_volumes`
 
 Clipboard writing copies only the text explicitly supplied in the command; there is no clipboard-reading action. ZIP creation is capped at 2,000 files and 100 MiB. ZIP inspection/extraction is capped at 500 entries and 100 MiB uncompressed, rejects path traversal and symbolic links, and extraction never overwrites existing files. Process actions report local process names, IDs and memory use only; they do not read command-line arguments or terminate processes. DNS lookup resolves one supplied hostname and does not scan ports or networks. System diagnostics use the project's existing `psutil` dependency. All actions remain behind WEBSTER's explicit confirmation flow.
+
+
+## G5.51–G5.60 local vision, creative, coding and home actions
+
+| Milestone | Action | Usage |
+|---|---|---|
+| G5.51 | `read_screen` | `run action read_screen` |
+| G5.52 | `camera_record` | `run action camera_record 10` (1–30 seconds) |
+| G5.53 | `analyse_image` | `run action analyse_image "C:\\Pics\\diagram.png"` |
+| G5.54 | `generate_image` | `run action generate_image "WEBSTER reactor concept"` |
+| G5.55 | `generate_video` | `run action generate_video "C:\\Pics\\a.jpg | C:\\Pics\\b.png"` |
+| G5.56 | `cursor_position` | `run action cursor_position` |
+| G5.57 | `move_cursor` | `run action move_cursor 500,300` |
+| G5.58 | `create_code_project` | `run action create_code_project my_project` |
+| G5.59 | `check_code` | `run action check_code "C:\\Projects\\app.py"` |
+| G5.60 | `home_assistant` | `run action home_assistant "light.turn_on | light.study"` |
+
+Optional local media dependencies (install only if using those features):
+
+```powershell
+python -m pip install -r requirements-vision.txt
+```
+
+Screen reading and image text extraction use local Tesseract OCR. Install the
+Tesseract application separately; the Python package alone is not the OCR engine.
+Camera recording opens a visible preview window, overlays a recording indicator,
+has a 1–30 second maximum duration, and can be stopped early with Q. It does not
+run in the background. The recording is saved under the user's Videos/WEBSTER
+folder.
+
+**Capability boundaries:** `analyse_image` currently reports image metadata and
+optionally extracts text; it is not semantic AI image understanding.
+`generate_image` creates a simple local SVG composition, not a text-to-image
+diffusion result. `generate_video` creates a slideshow from supplied images,
+not AI video generation. These are intentionally honest offline utilities;
+true local multimodal models are a separate integration. `read_screen` OCRs
+the primary display only when explicitly requested.
+
+Cursor movement is restricted to the primary display and sends no clicks or
+keystrokes. Project creation never overwrites an existing folder and does not
+execute generated files. `check_code` uses Python AST parsing only; it does not
+import or run the target file.
+
+For Home Assistant, add these values to the local `.env` (never commit the
+real token):
+
+```env
+HOME_ASSISTANT_URL=http://homeassistant.local:8123
+HOME_ASSISTANT_TOKEN=your_long_lived_access_token
+HOME_ASSISTANT_ALLOWED_ENTITIES=light.study,switch.desk
+```
+
+Only the exact entity IDs in the allowlist can be controlled. Supported services
+are limited to light/switch on/off. The normal WEBSTER action confirmation is
+still required. Use HTTPS when Home Assistant is accessed beyond a trusted
+local network.
