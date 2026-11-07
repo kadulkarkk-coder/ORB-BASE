@@ -77,7 +77,11 @@ class ActionManager:
             if path.name.startswith("_") or path.is_symlink():
                 continue
             try:
-                source = path.read_text(encoding="utf-8")
+                # Hash the exact bytes that execution will later verify. Using
+                # read_text() here normalizes CRLF to LF on Windows, causing a
+                # false integrity mismatch when execute() reads raw bytes.
+                source_bytes = path.read_bytes()
+                source = source_bytes.decode("utf-8")
                 tree = ast.parse(source, filename=str(path))
             except (OSError, UnicodeError, SyntaxError) as exc:
                 logger.warning("Skipping invalid action file %s: %s", path.name, exc)
@@ -94,7 +98,7 @@ class ActionManager:
             if not description or len(description) > 300 or not has_run:
                 logger.warning("Skipping incomplete action file: %s", path.name)
                 continue
-            found.append(ActionInfo(action_id, description, path.resolve(), hashlib.sha256(source.encode('utf-8')).hexdigest()))
+            found.append(ActionInfo(action_id, description, path.resolve(), hashlib.sha256(source_bytes).hexdigest()))
         # Duplicate IDs are ambiguous: fail closed and exclude every duplicate.
         counts: dict[str, int] = {}
         for item in found:
