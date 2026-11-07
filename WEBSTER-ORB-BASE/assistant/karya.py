@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
 import uuid
 
 from collections import OrderedDict
@@ -105,12 +106,17 @@ class _ManagedRunnable(QRunnable):
 
     @Slot()
     def run(self) -> None:
-        if self._cancel_event.is_set():
-            self._coordinator._finish(self._task_id, TaskState.CANCELLED)
+        if self._cancel_event.is_set() or not self._coordinator._start(
+            self._task_id,
+            self._cancel_event,
+        ):
+            self._coordinator._finish(
+                self._task_id,
+                TaskState.CANCELLED,
+            )
             self._signals.cancelled.emit(self._task_id)
             return
 
-        self._coordinator._start(self._task_id)
         self._signals.started.emit(self._task_id)
 
         try:
@@ -157,7 +163,7 @@ class Karya:
 
         task_id = f"task-{uuid.uuid4().hex[:10]}"
         name = task_name or getattr(function, "__name__", "background-task")
-        now = __import__("time").time()
+        now = time.time()
         cancel_event = threading.Event()
         signals = TaskSignals()
 
@@ -227,18 +233,23 @@ class Karya:
             ]
         return sum(self.cancel(task_id) for task_id in task_ids)
 
-    def _start(self, task_id: str) -> None:
-        import time
-
+    def _start(
+        self,
+        task_id: str,
+        cancel_event: threading.Event,
+    ) -> bool:
         with self._lock:
             info = self._records.get(task_id)
             if info is None or info.state in _TERMINAL_STATES:
-                return
+                return False
+            if cancel_event.is_set():
+                return False
             self._records[task_id] = replace(
                 info,
                 state=TaskState.RUNNING,
                 started_at=time.time(),
             )
+            return True
 
     def _finish(
         self,
@@ -246,8 +257,6 @@ class Karya:
         state: TaskState,
         error: str | None = None,
     ) -> None:
-        import time
-
         with self._lock:
             info = self._records.get(task_id)
             if info is None:
