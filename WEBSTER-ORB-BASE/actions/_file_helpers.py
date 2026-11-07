@@ -293,6 +293,9 @@ def convert_units(raw: str) -> str:
     if not match:
         raise ValueError("Use: <number> <unit> to <unit>, for example: 5 km to miles.")
     value = float(match.group(1))
+    import math
+    if not math.isfinite(value) or abs(value) > 1e15:
+        raise ValueError("Conversion value must be finite and no greater than 10^15 in magnitude.")
     source, target = match.group(2).lower(), match.group(3).lower()
     groups = {
         "length": {"mm": 0.001, "cm": 0.01, "m": 1.0, "km": 1000.0, "in": 0.0254, "ft": 0.3048, "yd": 0.9144, "mi": 1609.344, "meter": 1.0, "meters": 1.0, "mile": 1609.344, "miles": 1609.344},
