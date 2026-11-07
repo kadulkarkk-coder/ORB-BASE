@@ -105,7 +105,7 @@ def extract_zip_archive(raw):
             targets.append((info,target))
         written=0
         for info,target in targets:
-            if info.is_dir(): target.mkdir(parents=True,exist_ok=False); continue
+            if info.is_dir(): target.mkdir(parents=True,exist_ok=True); continue
             target.parent.mkdir(parents=True,exist_ok=True)
             with z.open(info) as src,target.open("xb") as dst:
                 while True:
