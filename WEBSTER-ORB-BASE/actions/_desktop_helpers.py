@@ -170,11 +170,11 @@ def lock_screen() -> str:
 
 def show_desktop_overview() -> str:
     user32=_windows_user32()
-    vk_lwin,vk_d,keyup=0x5B,0x44,0x0002
+    vk_lwin,vk_tab,keyup=0x5B,0x09,0x0002
     user32.keybd_event(vk_lwin,0,0,0)
     try:
-        user32.keybd_event(vk_d,0,0,0)
-        user32.keybd_event(vk_d,0,keyup,0)
+        user32.keybd_event(vk_tab,0,0,0)
+        user32.keybd_event(vk_tab,0,keyup,0)
     finally:
         user32.keybd_event(vk_lwin,0,keyup,0)
-    return "Showing the desktop."
+    return "Opened Windows Task View."
