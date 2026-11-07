@@ -429,6 +429,7 @@ class CommandRouter:
         return CommandResult(
             True,
             f"Goodbye, {config.USER_NAME}.",
+            requires_confirmation=True,
             ui_action="quit",
         )
 
