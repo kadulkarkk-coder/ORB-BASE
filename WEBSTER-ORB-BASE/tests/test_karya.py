@@ -91,8 +91,11 @@ class TestKarya(unittest.TestCase):
         ]
         self.assertTrue(self.pool.waitForDone(3000))
 
-        self.assertTrue(all(h.state == TaskState.SUCCEEDED for h in extra))
-        self.assertEqual(len(small_history.list_tasks()), 2)
+        retained = small_history.list_tasks()
+        self.assertEqual(len(retained), 2)
+        self.assertTrue(
+            all(info.state == TaskState.SUCCEEDED for info in retained)
+        )
 
     def test_prepared_task_can_connect_handlers_before_start(self):
         handle = self.karya.submit(
