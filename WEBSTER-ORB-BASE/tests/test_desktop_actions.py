@@ -106,3 +106,93 @@ class TestActionArgumentTransport(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestG5AudioAndSystemActions(unittest.TestCase):
+    @patch("actions._desktop_helpers.platform.system", return_value="Linux")
+    def test_windows_media_keys_fail_cleanly_off_windows(self, _system):
+        for action in (
+            desktop.volume_up, desktop.volume_down, desktop.volume_mute,
+            desktop.media_play_pause, desktop.media_next, desktop.media_previous,
+        ):
+            with self.subTest(action=action.__name__), self.assertRaises(RuntimeError):
+                action()
+
+    @patch("actions._desktop_helpers.platform.system", return_value="Windows")
+    @patch("actions._desktop_helpers.ctypes.windll", create=True)
+    def test_volume_up_sends_expected_key(self, windll, _system):
+        desktop.volume_up()
+        user32 = windll.user32
+        self.assertEqual(user32.keybd_event.call_count, 2)
+        self.assertEqual(user32.keybd_event.call_args_list[0].args[0], 0xAF)
+        self.assertEqual(user32.keybd_event.call_args_list[1].args[2], 0x0002)
+
+    @patch("actions._desktop_helpers.platform.system", return_value="Windows")
+    @patch("actions._desktop_helpers.ctypes.windll", create=True)
+    def test_media_next_sends_next_track_key(self, windll, _system):
+        desktop.media_next()
+        self.assertEqual(windll.user32.keybd_event.call_args_list[0].args[0], 0xB0)
+
+    @patch("actions._desktop_helpers.psutil", create=True)
+    def test_system_status_formats_metrics(self, psutil):
+        psutil.cpu_percent.return_value = 12.5
+        psutil.virtual_memory.return_value = type(
+            "Memory", (), {"percent": 50.0, "used": 2 * 1024**3, "total": 4 * 1024**3}
+        )()
+        psutil.disk_usage.return_value = type(
+            "Disk", (), {"percent": 75.0, "used": 30 * 1024**3, "total": 40 * 1024**3}
+        )()
+        with patch("actions._desktop_helpers.Path.home", return_value=Path("C:/")):
+            result = desktop.system_status()
+        self.assertIn("CPU usage: 12.5%", result)
+        self.assertIn("RAM usage: 50.0%", result)
+        self.assertIn("Disk usage", result)
+
+    @patch("actions._desktop_helpers.psutil", create=True)
+    def test_battery_status_handles_missing_battery(self, psutil):
+        psutil.sensors_battery.return_value = None
+        self.assertIn("No battery information", desktop.battery_status())
+
+    @patch("actions._desktop_helpers.psutil", create=True)
+    def test_battery_status_reports_charging(self, psutil):
+        psutil.POWER_TIME_UNLIMITED = -2
+        psutil.POWER_TIME_UNKNOWN = -1
+        psutil.sensors_battery.return_value = type(
+            "Battery", (), {"percent": 81, "power_plugged": True, "secsleft": 3600}
+        )()
+        result = desktop.battery_status()
+        self.assertIn("81%", result)
+        self.assertIn("charging", result)
+        self.assertIn("1h 0m", result)
+
+    @patch("actions._desktop_helpers.psutil", create=True)
+    def test_network_status_lists_active_interfaces(self, psutil):
+        import socket
+        psutil.net_if_stats.return_value = {
+            "Ethernet": type("Stats", (), {"isup": True})(),
+            "Offline": type("Stats", (), {"isup": False})(),
+        }
+        psutil.net_if_addrs.return_value = {
+            "Ethernet": [type("Address", (), {"family": socket.AF_INET, "address": "192.168.1.20"})()]
+        }
+        result = desktop.network_status()
+        self.assertIn("Ethernet: up", result)
+        self.assertIn("192.168.1.20", result)
+        self.assertNotIn("Offline", result)
+
+    def test_current_datetime_includes_date_time_and_timezone(self):
+        result = desktop.current_datetime()
+        self.assertIn("Date:", result)
+        self.assertIn("Time:", result)
+        self.assertIn("Timezone:", result)
+
+    def test_new_action_files_are_discoverable(self):
+        from actions import ActionManager
+        manager = ActionManager()
+        ids = {item.action_id for item in manager.discover()}
+        expected = {
+            "volume_up", "volume_down", "volume_mute", "media_play_pause",
+            "media_next", "media_previous", "system_status", "battery_status",
+            "network_status", "current_datetime",
+        }
+        self.assertTrue(expected.issubset(ids))
