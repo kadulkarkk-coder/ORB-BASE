@@ -97,20 +97,26 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
         self.assertTrue(self.policy.evaluate(result.action_id, confirmed=True).allowed)
 
 
-    def test_assistant_manager_registers_folder_actions(self):
+    def test_assistant_manager_registers_and_gates_folder_actions(self):
         with patch("assistant.assistant_manager.Smriti"), \
              patch("assistant.assistant_manager.Gyaan"), \
              patch("assistant.assistant_manager.create_engine"), \
-             patch("assistant.assistant_manager.SpeechEngine"):
+             patch("assistant.assistant_manager.SpeechEngine"), \
+             patch("actions.action_manager.ActionManager.execute", return_value="EXECUTED") as execute:
             manager = AssistantManager()
-        try:
-            self.assertIn("extension:hello_webster", manager.niyantrak.registered_actions)
-            result = manager.router.route("run action hello_webster")
-            self.assertTrue(result.requires_confirmation)
-            manager._handle_command_result(result)
-            self.assertIs(manager._pending_command, result)
-        finally:
-            manager.shutdown()
+            try:
+                self.assertIn("extension:hello_webster", manager.niyantrak.registered_actions)
+                result = manager.router.route("run action hello_webster")
+                self.assertTrue(result.requires_confirmation)
+                manager._handle_command_result(result)
+                self.assertIs(manager._pending_command, result)
+                execute.assert_not_called()
+
+                manager._handle_confirmation("yes")
+                execute.assert_called_once_with("hello_webster")
+                self.assertIsNone(manager._pending_command)
+            finally:
+                manager.shutdown()
 
     def test_unregistered_extension_action_is_denied(self):
         self.assertEqual(
