@@ -132,7 +132,7 @@ class KnowledgeStore:
 
     @staticmethod
     def _terms(query: str) -> set[str]:
-        return {term for term in re.findall(r"[\\w'-]+", query.casefold()) if len(term) > 1}
+        return {term for term in re.findall(r"[\w'-]+", query.casefold()) if len(term) > 1}
 
     def search(self, query: str, limit: int = 10) -> list[dict[str, Any]]:
         """Return deterministic keyword-ranked results with their source metadata."""
