@@ -6,6 +6,8 @@ from pathlib import Path
 
 from knowledge import Gyaan, GyaanError
 from assistant.commands import CommandRouter
+from assistant.assistant_manager import AssistantManager
+from unittest.mock import patch
 
 
 class TestGyaan(unittest.TestCase):
@@ -97,6 +99,17 @@ class TestGyaanCommandRouter(unittest.TestCase):
         deleted = self.router.route("knowledge delete Python loops")
         self.assertIn("Deleted", deleted.text)
         self.assertEqual(self.store.count(), 0)
+
+
+    def test_assistant_manager_connects_gyaan_to_router(self):
+        with patch("assistant.assistant_manager.Gyaan", return_value=self.store), \
+             patch("assistant.assistant_manager.Smriti"), \
+             patch("assistant.assistant_manager.create_engine"), \
+             patch("assistant.assistant_manager.SpeechEngine"):
+            manager = AssistantManager()
+        self.assertIs(manager.gyaan, self.store)
+        self.assertIs(manager.router._gyaan, self.store)
+        manager.shutdown()
 
     def test_commands_report_unavailable_provider(self):
         result = CommandRouter().route("knowledge search physics")
