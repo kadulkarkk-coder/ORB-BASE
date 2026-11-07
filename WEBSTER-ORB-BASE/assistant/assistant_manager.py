@@ -25,7 +25,6 @@ from typing import Callable, Optional, Any
 
 from PySide6.QtCore import (
     QObject,
-    QRunnable,
     QThreadPool,
     Signal,
     Slot,
@@ -34,6 +33,7 @@ from PySide6.QtCore import (
 
 from assistant.ai_engine import AIResult, Turn, create_engine
 from assistant.commands import CommandRouter, CommandResult
+from assistant.karya import Karya
 from assistant.speech import SpeechEngine
 from memory import Smriti, SmritiError 
 
@@ -55,60 +55,6 @@ class AssistantState(str, Enum):
 
 # =====================================================================
 # BACKGROUND TASK SIGNALS
-# =====================================================================
-
-class _TaskSignals(QObject):
-    finished = Signal(object)
-    failed = Signal(str)
-
-
-# =====================================================================
-# BACKGROUND TASK
-# =====================================================================
-
-class _Task(QRunnable):
-    """
-    Executes a function in QThreadPool and reports its result.
-
-    The separate QObject holds the signals because QRunnable itself
-    is not a QObject.
-    """
-
-    def __init__(
-        self,
-        function: Callable,
-        *args,
-        **kwargs,
-    ):
-        super().__init__()
-
-        self.function = function
-        self.args = args
-        self.kwargs = kwargs
-
-        self.signals = _TaskSignals()
-
-    @Slot()
-    def run(self):
-        try:
-            result = self.function(
-                *self.args,
-                **self.kwargs,
-            )
-
-            self.signals.finished.emit(result)
-
-        except Exception as exc:
-            logger.exception(
-                "Background task failed: %s",
-                getattr(self.function, "__name__", "unknown task"),
-            )
-
-            self.signals.failed.emit(str(exc))
-
-
-# =====================================================================
-# ASSISTANT MANAGER
 # =====================================================================
 
 class AssistantManager(QObject):
@@ -150,6 +96,7 @@ class AssistantManager(QObject):
 
         # Thread pool
         self.pool = QThreadPool.globalInstance()
+        self.karya = Karya(self.pool)
 
         # Core systems
         self.ai = create_engine()
@@ -376,9 +323,10 @@ class AssistantManager(QObject):
 
         self._set_state(AssistantState.PROCESSING)
 
-        task = _Task(
+        task = self.karya.submit(
             self._respond,
             text,
+            task_name="assistant-response",
         )
 
         task.signals.finished.connect(
@@ -390,8 +338,6 @@ class AssistantManager(QObject):
         )
 
         self._task = task
-
-        self.pool.start(task)
 
     def _respond(self, text: str) -> dict[str, Any]:
         """
@@ -692,11 +638,12 @@ class AssistantManager(QObject):
 
         self._set_state(AssistantState.SPEAKING)
 
-        task = _Task(
+        task = self.karya.submit(
             self.speech.speak,
             text,
             None,
             self._notify_barge_in,
+            task_name="speech-output",
         )
 
         task.signals.finished.connect(
@@ -708,8 +655,6 @@ class AssistantManager(QObject):
         )
 
         self._speak_task = task
-
-        self.pool.start(task)
 
     def _notify_barge_in(self):
         """
@@ -854,8 +799,9 @@ class AssistantManager(QObject):
 
         self.listening_changed.emit(True)
 
-        task = _Task(
-            self.speech.listen
+        task = self.karya.submit(
+            self.speech.listen,
+            task_name="speech-input",
         )
 
         task.signals.finished.connect(
@@ -867,8 +813,6 @@ class AssistantManager(QObject):
         )
 
         self._listen_task = task
-
-        self.pool.start(task)
 
     @Slot(object)
     def _on_listen_finished(self, result):
@@ -1181,6 +1125,10 @@ class AssistantManager(QObject):
             return
 
         self.shutting_down = True
+
+        # Prevent queued Karya work from starting. Running speech operations
+        # receive their existing subsystem cancellation signals below.
+        self.karya.cancel_all()
 
         self.continuous = False
         self.sleeping = True
