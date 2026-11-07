@@ -16,8 +16,19 @@ class TestNiyantrakPolicy(unittest.TestCase):
         decision = self.policy.evaluate(None)
         self.assertEqual(decision.status, PermissionStatus.DENIED)
 
-    def test_unknown_action_is_denied(self):
-        decision = self.policy.evaluate("run_arbitrary_command", confirmed=True)
+    def test_non_string_action_identifier_is_denied(self):
+        decision = self.policy.evaluate(123)
+        self.assertEqual(decision.status, PermissionStatus.DENIED)
+
+    def test_blank_action_identifier_is_denied(self):
+        decision = self.policy.evaluate("   ")
+        self.assertEqual(decision.status, PermissionStatus.DENIED)
+
+    def test_unknown_action_is_denied_even_when_confirmed(self):
+        decision = self.policy.evaluate(
+            "run_arbitrary_command",
+            confirmed=True,
+        )
         self.assertEqual(decision.status, PermissionStatus.DENIED)
 
     def test_known_desktop_action_requires_confirmation(self):
@@ -27,10 +38,40 @@ class TestNiyantrakPolicy(unittest.TestCase):
             PermissionStatus.CONFIRMATION_REQUIRED,
         )
 
-    def test_known_action_is_allowed_after_confirmation(self):
+    def test_truthy_non_boolean_confirmation_is_not_accepted(self):
+        for value in ("yes", 1, object()):
+            with self.subTest(value=value):
+                decision = self.policy.evaluate(
+                    "open_url",
+                    confirmed=value,
+                )
+                self.assertEqual(
+                    decision.status,
+                    PermissionStatus.CONFIRMATION_REQUIRED,
+                )
+
+    def test_known_action_is_allowed_after_literal_true_confirmation(self):
         decision = self.policy.evaluate("open_url", confirmed=True)
         self.assertTrue(decision.allowed)
         self.assertEqual(decision.status, PermissionStatus.ALLOWED)
+
+    def test_action_identifiers_are_normalized(self):
+        decision = self.policy.evaluate(" OPEN_APP ", confirmed=True)
+        self.assertTrue(decision.allowed)
+
+    def test_registered_actions_are_exposed_as_immutable_set(self):
+        actions = self.policy.registered_actions
+        self.assertEqual(
+            actions,
+            frozenset({"open_app", "open_url", "sleep_display"}),
+        )
+        with self.assertRaises(AttributeError):
+            actions.add("arbitrary_action")
+
+    def test_confirmation_query_rejects_unknown_and_malformed_ids(self):
+        self.assertTrue(self.policy.requires_confirmation("open_app"))
+        self.assertFalse(self.policy.requires_confirmation("unknown"))
+        self.assertFalse(self.policy.requires_confirmation(None))
 
 
 class TestCommandPermissionMetadata(unittest.TestCase):
@@ -64,7 +105,7 @@ class TestCommandPermissionMetadata(unittest.TestCase):
 
 class TestAssistantNiyantrakIntegration(unittest.TestCase):
     def _manager(self):
-        with patch("assistant.assistant_manager.Smriti") as memory_cls, \
+        with patch("assistant.assistant_manager.Smriti"), \
              patch("assistant.assistant_manager.create_engine"), \
              patch("assistant.assistant_manager.SpeechEngine"):
             manager = AssistantManager()
@@ -116,6 +157,20 @@ class TestAssistantNiyantrakIntegration(unittest.TestCase):
             text="Run unknown action?",
             action=lambda: calls.append("ran"),
             action_id="unknown_action",
+        )
+
+        manager._handle_command_result(result)
+
+        self.assertEqual(calls, [])
+        self.assertIsNone(manager._pending_command)
+
+    def test_action_without_identifier_is_blocked(self):
+        manager = self._manager()
+        calls = []
+        result = CommandResult(
+            handled=True,
+            text="Run unlabelled operation?",
+            action=lambda: calls.append("ran"),
         )
 
         manager._handle_command_result(result)
