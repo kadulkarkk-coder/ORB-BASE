@@ -14,6 +14,7 @@ not a sandbox. Only place code you have reviewed and trust in this folder.
 from __future__ import annotations
 
 import ast
+import hashlib
 import importlib.util
 import logging
 import re
@@ -34,6 +35,7 @@ class ActionInfo:
     action_id: str
     description: str
     path: Path
+    content_hash: str
 
     @property
     def permission_id(self) -> str:
@@ -92,7 +94,7 @@ class ActionManager:
             if not description or len(description) > 300 or not has_run:
                 logger.warning("Skipping incomplete action file: %s", path.name)
                 continue
-            found.append(ActionInfo(action_id, description, path.resolve()))
+            found.append(ActionInfo(action_id, description, path.resolve(), hashlib.sha256(source.encode('utf-8')).hexdigest()))
         # Duplicate IDs are ambiguous: fail closed and exclude every duplicate.
         counts: dict[str, int] = {}
         for item in found:
@@ -104,13 +106,15 @@ class ActionManager:
             return None
         return next((item for item in self.discover() if item.action_id == action_id), None)
 
-    def execute(self, action_id: str) -> str:
-        """Import and run a previously discovered action after caller approval."""
+    def execute(self, action_id: str, *, expected_hash: str | None = None) -> str:
+        """Import and run an action only if its reviewed file has not changed."""
         info = self.get(action_id)
         if info is None:
             raise ActionError("That action is missing, invalid, or ambiguous.")
         if info.path.parent != self.folder.resolve():
             raise ActionError("Action file is outside the approved actions folder.")
+        if expected_hash is not None and info.content_hash != expected_hash:
+            raise ActionError("The action file changed after approval. Review it and request the action again.")
 
         module_name = f"_webster_action_{info.action_id}"
         spec = importlib.util.spec_from_file_location(module_name, info.path)
