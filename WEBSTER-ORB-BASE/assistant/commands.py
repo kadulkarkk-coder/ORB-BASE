@@ -232,7 +232,7 @@ class CommandRouter:
         query = raw_query.strip()
         if query.casefold() in {"actions", "list actions", "show actions"}:
             return self._cmd_list_actions()
-        match = re.fullmatch(r"run action\\s+([a-z][a-z0-9_]{1,47})", query, re.IGNORECASE)
+        match = re.fullmatch(r"run action\s+([a-z][a-z0-9_]{1,47})", query, re.IGNORECASE)
         if match:
             return self._cmd_run_action(match.group(1).lower())
         return None
@@ -244,7 +244,7 @@ class CommandRouter:
         if not items:
             return CommandResult(True, "No valid actions are installed in the actions folder.")
         lines = [f"{item.action_id} — {item.description}" for item in items]
-        return CommandResult(True, "Available reviewed actions:\\n" + "\\n".join(lines), speak=False)
+        return CommandResult(True, "Available reviewed actions:\n" + "\n".join(lines), speak=False)
 
     def _cmd_run_action(self, action_id: str) -> CommandResult:
         if self._actions is None:
@@ -254,7 +254,7 @@ class CommandRouter:
             return CommandResult(True, f"No valid action named '{action_id}' was found.", level="warn")
         return CommandResult(
             True,
-            f"Run action '{item.action_id}'?\\n{item.description}\\n\\nThis action runs as your current user after confirmation.",
+            f"Run action '{item.action_id}'?\n{item.description}\n\nThis action runs as your current user after confirmation.",
             requires_confirmation=True,
             action=lambda: self._actions.execute(item.action_id),
             action_id=item.permission_id,
