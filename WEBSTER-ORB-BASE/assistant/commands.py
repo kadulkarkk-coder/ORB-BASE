@@ -22,6 +22,7 @@ from typing import Callable, NamedTuple
 
 import config
 from memory import SmritiError
+from knowledge import GyaanError
 from system.system_info import format_duration, host_info
 
 
@@ -149,10 +150,12 @@ class CommandRouter:
         stats_provider: Callable[[], object] | None = None,
         engine_name: Callable[[], str] | None = None,
         memory_provider: object | None = None,
+        gyaan_provider: object | None = None,
     ) -> None:
         self._stats = stats_provider or (lambda: None)
         self._engine_name = engine_name or (lambda: "unknown")
         self._memory = memory_provider
+        self._gyaan = gyaan_provider
 
     # -----------------------------------------------------------------
     # PUBLIC API
@@ -162,14 +165,21 @@ class CommandRouter:
         """Attach or replace the persistent memory provider."""
         self._memory = memory_provider
 
+    def set_gyaan_provider(self, gyaan_provider: object | None) -> None:
+        """Attach or replace the local knowledge provider."""
+        self._gyaan = gyaan_provider
+
     def route(self, text: str) -> CommandResult:
         raw_query = (text or "").strip().rstrip("?!.")
         if not raw_query:
             return NOT_HANDLED
 
-        # Smriti commands are checked before system metrics.
-        memory_result = self._route_memory(raw_query)
+        # Explicit knowledge and memory commands are handled locally.
+        gyaan_result = self._route_gyaan(raw_query)
+        if gyaan_result is not None:
+            return gyaan_result
 
+        memory_result = self._route_memory(raw_query)
         if memory_result is not None:
             return memory_result
 
@@ -193,8 +203,71 @@ class CommandRouter:
             "recall <key> · "
             "list memories · "
             "forget <key>.\n\n"
+            "Gyaan knowledge commands:\n"
+            "knowledge add <title> = <content> · "
+            "knowledge search <query> · list knowledge · "
+            "knowledge delete <title>.\n\n"
             "Anything else is sent to the AI engine."
         )
+
+    # -----------------------------------------------------------------
+    # GYAAN KNOWLEDGE COMMANDS
+    # -----------------------------------------------------------------
+
+    def _route_gyaan(self, raw_query: str) -> CommandResult | None:
+        query = raw_query.strip()
+        if re.fullmatch(r"list knowledge", query, re.IGNORECASE):
+            return self._cmd_list_knowledge()
+        match = re.fullmatch(r"knowledge\s+add\s+(.+?)\s*=\s*(.+)", query, re.IGNORECASE)
+        if match:
+            return self._cmd_add_knowledge(match.group(1).strip(), match.group(2).strip())
+        match = re.fullmatch(r"knowledge\s+search\s+(.+)", query, re.IGNORECASE)
+        if match:
+            return self._cmd_search_knowledge(match.group(1).strip())
+        match = re.fullmatch(r"knowledge\s+delete\s+(.+)", query, re.IGNORECASE)
+        if match:
+            return self._cmd_delete_knowledge(match.group(1).strip())
+        return None
+
+    def _require_gyaan(self):
+        if self._gyaan is None:
+            raise GyaanError("Gyaan knowledge storage is unavailable.")
+        return self._gyaan
+
+    def _cmd_add_knowledge(self, title: str, content: str) -> CommandResult:
+        try:
+            self._require_gyaan().add(title, content, source="User-provided")
+            return CommandResult(True, f"Saved '{title}' to Gyaan.")
+        except (GyaanError, ValueError) as exc:
+            return CommandResult(True, f"Could not save knowledge: {exc}", level="warn")
+
+    def _cmd_search_knowledge(self, query: str) -> CommandResult:
+        try:
+            items = self._require_gyaan().search(query, limit=5)
+            if not items:
+                return CommandResult(True, f"Gyaan found no matches for '{query}'.")
+            lines = [f"{item['title']} [Source: {item['source']}]\n{item['content'][:500]}" for item in items]
+            return CommandResult(True, "Gyaan results (sources shown per item):\n\n" + "\n\n".join(lines), speak=False)
+        except (GyaanError, ValueError) as exc:
+            return CommandResult(True, f"Could not search Gyaan: {exc}", level="warn")
+
+    def _cmd_list_knowledge(self) -> CommandResult:
+        try:
+            items = self._require_gyaan().list_items(limit=30)
+            if not items:
+                return CommandResult(True, "Gyaan has no saved knowledge yet.")
+            lines = [f"{item['title']} [Source: {item['source']}]" for item in items]
+            return CommandResult(True, "Gyaan library:\n" + "\n".join(lines), speak=False)
+        except GyaanError as exc:
+            return CommandResult(True, f"Could not list Gyaan: {exc}", level="warn")
+
+    def _cmd_delete_knowledge(self, title: str) -> CommandResult:
+        try:
+            deleted = self._require_gyaan().delete(title)
+            message = f"Deleted '{title}' from Gyaan." if deleted else f"No Gyaan item named '{title}'."
+            return CommandResult(True, message)
+        except (GyaanError, ValueError) as exc:
+            return CommandResult(True, f"Could not delete knowledge: {exc}", level="warn")
 
     # -----------------------------------------------------------------
     # SMRITI MEMORY COMMANDS
