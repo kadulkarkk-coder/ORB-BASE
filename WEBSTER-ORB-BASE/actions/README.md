@@ -66,3 +66,23 @@ Platform notes:
 - open_settings accepts only a fixed list of Windows Settings pages.
 - open_website accepts only HTTP(S) URLs and rejects embedded credentials.
 - open_folder only opens an existing directory.
+
+
+## G5.11–G5.20 audio and system actions
+
+- \`run action volume_up\`
+- \`run action volume_down\`
+- \`run action volume_mute\`
+- \`run action media_play_pause\`
+- \`run action media_next\`
+- \`run action media_previous\`
+- \`run action system_status\`
+- \`run action battery_status\`
+- \`run action network_status\`
+- \`run action current_datetime\`
+
+The volume and media-key actions currently use standard Windows media keys.
+The three system diagnostics are read-only and use the project's existing
+\`psutil\` dependency. Battery information may be unavailable on desktops or
+hardware that does not expose battery telemetry. Network status lists active
+interfaces and local IPv4 addresses only; it does not scan the network.
