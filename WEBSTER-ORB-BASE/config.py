@@ -195,7 +195,7 @@ MONITOR_INTERVAL_S = _env_float("JARVIS_MONITOR_INTERVAL", 1.5)
 class AIConfig:
     # gemini | auto | openai | ollama | claude | offline
     provider: str = field(
-        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "gemini")
+        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "auto")
     )
 
     gemini_model: str = field(
