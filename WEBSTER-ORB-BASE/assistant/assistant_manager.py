@@ -327,6 +327,7 @@ class AssistantManager(QObject):
             self._respond,
             text,
             task_name="assistant-response",
+            auto_start=False,
         )
 
         task.signals.finished.connect(
@@ -338,6 +339,7 @@ class AssistantManager(QObject):
         )
 
         self._task = task
+        task.start()
 
     def _respond(self, text: str) -> dict[str, Any]:
         """
@@ -644,6 +646,7 @@ class AssistantManager(QObject):
             None,
             self._notify_barge_in,
             task_name="speech-output",
+            auto_start=False,
         )
 
         task.signals.finished.connect(
@@ -655,6 +658,7 @@ class AssistantManager(QObject):
         )
 
         self._speak_task = task
+        task.start()
 
     def _notify_barge_in(self):
         """
@@ -802,6 +806,7 @@ class AssistantManager(QObject):
         task = self.karya.submit(
             self.speech.listen,
             task_name="speech-input",
+            auto_start=False,
         )
 
         task.signals.finished.connect(
@@ -813,6 +818,7 @@ class AssistantManager(QObject):
         )
 
         self._listen_task = task
+        task.start()
 
     @Slot(object)
     def _on_listen_finished(self, result):
