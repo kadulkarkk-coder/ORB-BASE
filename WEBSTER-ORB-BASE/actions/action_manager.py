@@ -15,10 +15,10 @@ from __future__ import annotations
 
 import ast
 import hashlib
-import importlib.util
 import logging
 import re
 import sys
+from types import ModuleType
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -117,13 +117,18 @@ class ActionManager:
             raise ActionError("The action file changed after approval. Review it and request the action again.")
 
         module_name = f"_webster_action_{info.action_id}"
-        spec = importlib.util.spec_from_file_location(module_name, info.path)
-        if spec is None or spec.loader is None:
-            raise ActionError("Could not load that action file.")
-        module = importlib.util.module_from_spec(spec)
-        sys.modules[module_name] = module
         try:
-            spec.loader.exec_module(module)
+            source_bytes = info.path.read_bytes()
+            actual_hash = hashlib.sha256(source_bytes).hexdigest()
+            if actual_hash != info.content_hash:
+                raise ActionError("The action file changed during loading. Request it again.")
+            if expected_hash is not None and actual_hash != expected_hash:
+                raise ActionError("The action file changed after approval. Review it and request the action again.")
+            source = source_bytes.decode("utf-8")
+            module = ModuleType(module_name)
+            module.__file__ = str(info.path)
+            sys.modules[module_name] = module
+            exec(compile(source, str(info.path), "exec"), module.__dict__)
             run = getattr(module, "run", None)
             if not callable(run):
                 raise ActionError("Action does not expose a callable run().")
