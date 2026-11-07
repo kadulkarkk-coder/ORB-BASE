@@ -336,7 +336,7 @@ def compare_text_files(raw: str) -> str:
     if a == b:
         return "The two text files are identical."
     diff = list(difflib.unified_diff(a, b, fromfile=first.name, tofile=second.name, lineterm=""))
-    return "\\n".join(diff[:100])[:3500] or "The files differ."
+    return "\n".join(diff[:100])[:3500] or "The files differ."
 
 def search_text_in_folder(raw: str) -> str:
     import os
