@@ -5,6 +5,7 @@ import unittest
 from pathlib import Path
 
 from knowledge import Gyaan, GyaanError
+from assistant.commands import CommandRouter
 
 
 class TestGyaan(unittest.TestCase):
@@ -67,6 +68,40 @@ class TestGyaan(unittest.TestCase):
     def test_search_rejects_empty_query(self):
         with self.assertRaises(ValueError):
             self.store.search(" ")
+
+
+
+
+class TestGyaanCommandRouter(unittest.TestCase):
+    def setUp(self):
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.store = Gyaan(Path(self.temp_dir.name) / "commands.db")
+        self.router = CommandRouter(gyaan_provider=self.store)
+
+    def tearDown(self):
+        self.temp_dir.cleanup()
+
+    def test_add_search_list_and_delete_commands(self):
+        added = self.router.route("knowledge add Python loops = A for-loop repeats a block")
+        self.assertTrue(added.handled)
+        self.assertIn("Gyaan", added.text)
+
+        searched = self.router.route("knowledge search for-loop")
+        self.assertTrue(searched.handled)
+        self.assertIn("Source: User-provided", searched.text)
+        self.assertIn("Python loops", searched.text)
+
+        listed = self.router.route("list knowledge")
+        self.assertIn("Python loops", listed.text)
+
+        deleted = self.router.route("knowledge delete Python loops")
+        self.assertIn("Deleted", deleted.text)
+        self.assertEqual(self.store.count(), 0)
+
+    def test_commands_report_unavailable_provider(self):
+        result = CommandRouter().route("knowledge search physics")
+        self.assertTrue(result.handled)
+        self.assertIn("unavailable", result.text.lower())
 
 
 if __name__ == "__main__":
