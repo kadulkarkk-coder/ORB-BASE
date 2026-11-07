@@ -74,7 +74,7 @@ class ActionManager:
         if not self.folder.is_dir():
             return found
         for path in sorted(self.folder.glob("*.py")):
-            if path.name.startswith("_") or path.is_symlink():
+            if path.name.startswith("_") or path.name == "action_manager.py" or path.is_symlink():
                 continue
             try:
                 # Hash the exact bytes that execution will later verify. Using
