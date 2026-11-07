@@ -19,7 +19,7 @@ class TestG541ToG550(unittest.TestCase):
             def update(self): pass
             def destroy(self): pass
         root = FakeRoot()
-        fake_tk = type("FakeTk", (), {"Tk": lambda: root})
+        fake_tk = type("FakeTk", (), {"Tk": staticmethod(lambda: root)})
         with patch.dict("sys.modules", {"tkinter": fake_tk}):
             self.assertIn("Copied 5 characters", helpers.clipboard_copy("hello"))
             self.assertEqual(root.value, "hello")
