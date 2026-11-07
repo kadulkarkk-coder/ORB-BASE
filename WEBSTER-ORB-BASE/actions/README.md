@@ -86,3 +86,25 @@ The three system diagnostics are read-only and use the project's existing
 \`psutil\` dependency. Battery information may be unavailable on desktops or
 hardware that does not expose battery telemetry. Network status lists active
 interfaces and local IPv4 addresses only; it does not scan the network.
+
+
+## G5.21–G5.30 utility and file actions
+
+- `run action calculate 12 * (4 + 3)`
+- `run action open_file "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action create_folder "C:\\Users\\Student\\Documents\\WEBSTER"`
+- `run action create_text_file "C:\\Users\\Student\\Documents\\note.txt | Hello from WEBSTER"`
+- `run action append_text_file "C:\\Users\\Student\\Documents\\note.txt | More text"`
+- `run action list_folder "C:\\Users\\Student\\Documents"`
+- `run action search_files "C:\\Users\\Student\\Documents | notes"`
+- `run action file_info "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action read_text_file "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action find_text_in_file "C:\\Users\\Student\\Documents\\notes.txt | keyword"`
+
+File actions require an explicit path and remain behind WEBSTER's normal
+confirmation prompt. Creation never overwrites an existing file or folder.
+Text creation is capped at 64 KiB; each append is capped at 16 KiB. Reading
+and phrase-search are limited to recognised UTF-8 text formats and 64 KiB.
+Folder listing is capped at 100 immediate entries. Filename search is bounded
+to depth 4, 5,000 inspected filenames and 50 matches; it does not read file
+contents. The calculator accepts basic arithmetic only, not Python code.
