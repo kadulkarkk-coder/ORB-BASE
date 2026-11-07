@@ -55,6 +55,15 @@ class TestActionManager(unittest.TestCase):
         with self.assertRaises(ActionError):
             self.manager.execute("missing")
 
+    def test_action_file_change_after_request_is_rejected(self):
+        self.write_action("mutable.py", 'ACTION_ID = "mutable"\nDESCRIPTION = "Mutable action"\ndef run(): return "original"\n')
+        manager = ActionManager(self.folder)
+        router = CommandRouter(action_provider=manager)
+        requested = router.route("run action mutable")
+        self.write_action("mutable.py", 'ACTION_ID = "mutable"\nDESCRIPTION = "Mutable action"\ndef run(): return "changed"\n')
+        with self.assertRaises(ActionError):
+            requested.action()
+
     def test_non_text_return_is_rejected(self):
         self.write_action("wrong.py", 'ACTION_ID = "wrong_type"\nDESCRIPTION = "Wrong return"\ndef run(): return 42\n')
         with self.assertRaises(ActionError):
@@ -113,7 +122,9 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
                 execute.assert_not_called()
 
                 manager._handle_confirmation("yes")
-                execute.assert_called_once_with("hello_webster")
+                execute.assert_called_once()
+                self.assertEqual(execute.call_args.args, ("hello_webster",))
+                self.assertIn("expected_hash", execute.call_args.kwargs)
                 self.assertIsNone(manager._pending_command)
             finally:
                 manager.shutdown()
