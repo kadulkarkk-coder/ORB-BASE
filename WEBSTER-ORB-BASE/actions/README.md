@@ -129,3 +129,19 @@ to recognised UTF-8 text files up to 64 KiB. Folder text search is bounded to
 depth 3, 1,000 candidate files and 30 matches. JSON validation does not modify
 the file. Unit conversion supports a fixed set of common length, mass, time,
 volume and temperature units. All actions remain behind explicit confirmation.
+
+
+## G5.41–G5.50 system and archive actions
+
+- `run action clipboard_copy "Text to copy"`
+- `run action create_zip_archive "C:\\Users\\Student\\Documents | C:\\Users\\Student\\Documents.zip"`
+- `run action inspect_zip_archive "C:\\Users\\Student\\Documents.zip"`
+- `run action extract_zip_archive "C:\\Users\\Student\\Documents.zip | C:\\Users\\Student\\Extracted"`
+- `run action uptime_status`
+- `run action process_summary`
+- `run action top_processes`
+- `run action dns_lookup example.com`
+- `run action python_environment`
+- `run action disk_volumes`
+
+Clipboard writing copies only the text explicitly supplied in the command; there is no clipboard-reading action. ZIP creation is capped at 2,000 files and 100 MiB. ZIP inspection/extraction is capped at 500 entries and 100 MiB uncompressed, rejects path traversal and symbolic links, and extraction never overwrites existing files. Process actions report local process names, IDs and memory use only; they do not read command-line arguments or terminate processes. DNS lookup resolves one supplied hostname and does not scan ports or networks. System diagnostics use the project's existing `psutil` dependency. All actions remain behind WEBSTER's explicit confirmation flow.
