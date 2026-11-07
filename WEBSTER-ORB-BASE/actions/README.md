@@ -61,7 +61,7 @@ verifies the approved source hash before execution.
 Platform notes:
 - App launching reuses WEBSTER's existing allowlisted application catalogue.
 - Window switching, minimize/maximize, graceful app close, lock screen and
-  desktop overview currently target Windows.
+  Task View overview currently target Windows.
 - close_app sends normal window-close requests; it never force-kills a process.
 - open_settings accepts only a fixed list of Windows Settings pages.
 - open_website accepts only HTTP(S) URLs and rejects embedded credentials.
