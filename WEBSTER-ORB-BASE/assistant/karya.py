@@ -60,10 +60,39 @@ class TaskSignals(QObject):
 class TaskHandle:
     """Stable reference to a submitted task."""
 
-    def __init__(self, coordinator: "Karya", task_id: str, signals: TaskSignals):
+    def __init__(
+        self,
+        coordinator: "Karya",
+        task_id: str,
+        signals: TaskSignals,
+        runnable: QRunnable,
+        priority: int,
+    ):
         self._coordinator = coordinator
         self.task_id = task_id
         self.signals = signals
+        self._runnable = runnable
+        self._priority = priority
+        self._started = False
+        self._start_lock = threading.Lock()
+
+    def start(self) -> bool:
+        """Start a prepared task exactly once.
+
+        Callers may connect result signals before starting to avoid losing
+        very fast task completions.
+        """
+        with self._start_lock:
+            if self._started:
+                return False
+            self._started = True
+        self._coordinator._enqueue(
+            self._runnable,
+            self._priority,
+            self.signals,
+            self.task_id,
+        )
+        return True
 
     @property
     def info(self) -> TaskInfo | None:
@@ -155,6 +184,7 @@ class Karya:
         *args: Any,
         task_name: str | None = None,
         priority: int = 0,
+        auto_start: bool = True,
         **kwargs: Any,
     ) -> TaskHandle:
         """Queue a trusted callable and return its task handle."""
@@ -186,9 +216,30 @@ class Karya:
             cancel_event,
             signals,
         )
-        handle = TaskHandle(self, task_id, signals)
-        self.pool.start(runnable, int(priority))
+        handle = TaskHandle(
+            self,
+            task_id,
+            signals,
+            runnable,
+            int(priority),
+        )
+        if auto_start:
+            handle.start()
         return handle
+
+    def _enqueue(
+        self,
+        runnable: QRunnable,
+        priority: int,
+        signals: TaskSignals,
+        task_id: str,
+    ) -> None:
+        try:
+            self.pool.start(runnable, priority)
+        except Exception as exc:
+            logger.exception("Could not enqueue Karya task %s", task_id)
+            self._finish(task_id, TaskState.FAILED, error=str(exc))
+            signals.failed.emit(str(exc))
 
     def get(self, task_id: str) -> TaskInfo | None:
         with self._lock:
