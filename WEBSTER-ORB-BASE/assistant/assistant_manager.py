@@ -38,6 +38,7 @@ from system.niyantrak import Niyantrak, PermissionStatus
 from assistant.speech import SpeechEngine
 from memory import Smriti, SmritiError
 from knowledge import Gyaan, GyaanError
+from actions import ActionManager
 
 logger = logging.getLogger(__name__)
 
@@ -100,6 +101,9 @@ class AssistantManager(QObject):
         self.pool = QThreadPool.globalInstance()
         self.karya = Karya(self.pool)
         self.niyantrak = Niyantrak()
+        self.action_manager = ActionManager()
+        for action_info in self.action_manager.discover():
+            self.niyantrak.register_extension_action(action_info.permission_id)
 
         # Core systems
         self.ai = create_engine()
@@ -162,6 +166,8 @@ class AssistantManager(QObject):
             logger.exception("Gyaan could not be initialized.")
             self.log.emit("Gyaan is unavailable. Core assistant functions remain online.")
         self.router.set_gyaan_provider(self.gyaan)
+        self.router.set_action_provider(self.action_manager)
+        self.log.emit(f"Actions folder online: {len(self.action_manager.discover())} reviewed action(s) available.")
 
         # Listening state
         self._listen_cancelled = False
