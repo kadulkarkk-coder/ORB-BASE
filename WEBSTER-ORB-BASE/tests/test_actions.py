@@ -45,6 +45,24 @@ class TestActionManager(unittest.TestCase):
         self.write_action("two.py", source)
         self.assertEqual(self.manager.discover(), [])
 
+    def test_action_manager_implementation_is_not_discovered(self):
+        self.write_action(
+            "action_manager.py",
+            'ACTION_ID = "not_an_action"\\n'
+            'DESCRIPTION = "Internal manager module"\\n'
+            'def run(): return "should never be listed"\\n',
+        )
+        self.write_action(
+            "real_action.py",
+            'ACTION_ID = "real_action"\\n'
+            'DESCRIPTION = "A real action"\\n'
+            'def run(): return "ok"\\n',
+        )
+        self.assertEqual(
+            [item.action_id for item in self.manager.discover()],
+            ["real_action"],
+        )
+
     def test_nested_files_are_not_discovered(self):
         nested = self.folder / "nested"
         nested.mkdir()
