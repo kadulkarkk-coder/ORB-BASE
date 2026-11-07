@@ -44,6 +44,12 @@ class TestGyaan(unittest.TestCase):
         self.assertEqual(self.store.count(), 1)
         self.assertEqual(self.store.get("Topic")["source"], "Book B")
 
+    def test_title_upsert_is_case_insensitive(self):
+        self.store.add("Python", "First")
+        self.store.add("python", "Updated")
+        self.assertEqual(self.store.count(), 1)
+        self.assertEqual(self.store.get("PYTHON")["content"], "Updated")
+
     def test_data_persists_after_reopening(self):
         path = Path(self.temp_dir.name) / "persistent.db"
         first = Gyaan(path)
