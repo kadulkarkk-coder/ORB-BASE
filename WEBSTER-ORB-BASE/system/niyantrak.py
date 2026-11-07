@@ -1,8 +1,8 @@
 """Niyantrak: fail-closed permission checks for local system actions.
 
-Only explicitly registered actions may run. Desktop-affecting actions require
-an explicit confirmation from the active conversation. This module is a
-policy gate only: it never executes commands or evaluates generated code.
+Only built-in actions and reviewed extensions registered from the flat actions
+folder may run. Every side-effecting action requires explicit confirmation.
+This module is a policy gate only: it never executes code.
 """
 
 from __future__ import annotations
@@ -29,10 +29,11 @@ class PermissionDecision:
 
 
 class Niyantrak:
-    """Allowlist-based policy gate for known desktop operations.
+    """Fail-closed policy gate for built-ins and reviewed folder extensions.
 
-    The allowlist is deliberately static in G4.4. New system capabilities
-    must be reviewed and added in code; AI output cannot register permissions.
+    Extension IDs are registered only from valid action files discovered at
+    startup. AI output cannot register permissions; every extension requires
+    an explicit user confirmation before it is imported and executed.
     """
 
     _CONFIRMATION_REQUIRED = frozenset({
