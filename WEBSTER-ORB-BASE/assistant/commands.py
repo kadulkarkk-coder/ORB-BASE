@@ -34,6 +34,7 @@ class CommandResult:
     action: Callable[[], str] | None = None
     speak: bool = True
     ui_action: str | None = None
+    action_id: str | None = None
 
 
 NOT_HANDLED = CommandResult(handled=False)
@@ -573,6 +574,7 @@ class CommandRouter:
                 f"Open {url} in the browser?",
                 requires_confirmation=True,
                 action=lambda: _open_url(url),
+                action_id="open_url",
             )
 
         cleaned = _OPEN_FILLER.sub("", target).strip()
@@ -594,8 +596,10 @@ class CommandRouter:
 
         return CommandResult(
             True,
-            "",
+            f"Open {app.label}?",
+            requires_confirmation=True,
             action=lambda: _open_app(app),
+            action_id="open_app",
         )
 
     def _cmd_sleep_display(self, _query: str) -> CommandResult:
@@ -604,6 +608,7 @@ class CommandRouter:
             "Put the display to sleep?",
             requires_confirmation=True,
             action=_sleep_display,
+            action_id="sleep_display",
         )
 
 
