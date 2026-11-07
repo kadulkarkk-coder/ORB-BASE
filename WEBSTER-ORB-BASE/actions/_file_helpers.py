@@ -240,7 +240,7 @@ def copy_file(raw: str) -> str:
 def rename_file(raw: str) -> str:
     source_raw, new_name = _split_pair(raw, "source file", "new filename")
     source = existing_file(source_raw)
-    if new_name in {".", ".."} or Path(new_name).name != new_name or any(c in new_name for c in ("/", "\\\\")):
+    if new_name in {".", ".."} or Path(new_name).name != new_name or any(c in new_name for c in ("/", "\\")):
         raise ValueError("Provide only a new filename, not a path.")
     destination = source.with_name(new_name)
     if destination.exists() or destination.is_symlink():
