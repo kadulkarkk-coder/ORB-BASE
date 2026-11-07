@@ -1,0 +1,5 @@
+# Optional local screen, image, camera and slideshow features
+mss>=9.0,<11
+Pillow>=10,<13
+pytesseract>=0.3.10,<1
+opencv-python>=4.10,<5
