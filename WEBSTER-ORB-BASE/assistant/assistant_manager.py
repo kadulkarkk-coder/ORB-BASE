@@ -34,6 +34,7 @@ from PySide6.QtCore import (
 from assistant.ai_engine import AIResult, Turn, create_engine
 from assistant.commands import CommandRouter, CommandResult
 from assistant.karya import Karya
+from system.niyantrak import Niyantrak, PermissionStatus
 from assistant.speech import SpeechEngine
 from memory import Smriti, SmritiError 
 
@@ -97,6 +98,7 @@ class AssistantManager(QObject):
         # Thread pool
         self.pool = QThreadPool.globalInstance()
         self.karya = Karya(self.pool)
+        self.niyantrak = Niyantrak()
 
         # Core systems
         self.ai = create_engine()
@@ -495,16 +497,39 @@ class AssistantManager(QObject):
             self._set_state(AssistantState.IDLE)
             return
 
-        # Commands requiring approval are never executed immediately.
+        # Niyantrak is the final permission gate for every callable action.
+        # Unknown or unlabelled actions are denied by default.
+        if result.action is not None:
+            decision = self.niyantrak.evaluate(
+                result.action_id,
+                confirmed=False,
+            )
+            if decision.status is PermissionStatus.DENIED:
+                self.log.emit(f"Niyantrak blocked an action: {decision.reason}")
+                self.message.emit(
+                    "assistant",
+                    "Niyantrak blocked this operation. " + decision.reason,
+                )
+                self._set_state(AssistantState.IDLE)
+                return
+
+            if decision.status is PermissionStatus.CONFIRMATION_REQUIRED:
+                self._pending_command = result
+                self.message.emit(
+                    "assistant",
+                    (result.text or "This operation needs approval.")
+                    + "\n\nNiyantrak: reply YES to confirm or NO to cancel.",
+                )
+                self._set_state(AssistantState.IDLE)
+                return
+
+        # Retain confirmation support for non-system legacy commands.
         if result.requires_confirmation:
             self._pending_command = result
-
             self.message.emit(
                 "assistant",
-                result.text
-                + "\n\nReply YES to confirm or NO to cancel.",
+                result.text + "\n\nReply YES to confirm or NO to cancel.",
             )
-
             self._set_state(AssistantState.IDLE)
             return
 
@@ -547,15 +572,33 @@ class AssistantManager(QObject):
             return
 
         if command is not None:
-            self._finish_command(command)
+            self._finish_command(command, confirmed=True)
 
-    def _finish_command(self, result: CommandResult):
+    def _finish_command(
+        self,
+        result: CommandResult,
+        *,
+        confirmed: bool = False,
+    ):
         if self.shutting_down:
             return
 
         output = result.text or ""
 
         if result.action is not None:
+            decision = self.niyantrak.evaluate(
+                result.action_id,
+                confirmed=confirmed,
+            )
+            if not decision.allowed:
+                self.log.emit(f"Niyantrak blocked an action: {decision.reason}")
+                self.message.emit(
+                    "assistant",
+                    "Niyantrak blocked this operation. " + decision.reason,
+                )
+                self._set_state(AssistantState.IDLE)
+                return
+
             try:
                 action_output = result.action()
 
