@@ -20,7 +20,6 @@ import re
 import sys
 from dataclasses import dataclass
 from pathlib import Path
-from types import ModuleType
 
 logger = logging.getLogger(__name__)
 _ACTION_ID = re.compile(r"^[a-z][a-z0-9_]{1,47}$")
@@ -84,7 +83,7 @@ class ActionManager:
             action_id = self._literal_string(tree, "ACTION_ID")
             description = self._literal_string(tree, "DESCRIPTION")
             has_run = any(
-                isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "run"
+                isinstance(node, ast.FunctionDef) and node.name == "run"
                 for node in tree.body
             )
             if not action_id or not _ACTION_ID.fullmatch(action_id):
