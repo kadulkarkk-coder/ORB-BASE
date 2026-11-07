@@ -5,7 +5,7 @@ Responsibilities
 ----------------
 - Coordinate AI responses, commands, speech input and TTS.
 - Manage assistant states and conversation history.
-- Run blocking operations in QThreadPool workers.
+- Delegate background work to Karya on the shared QThreadPool.
 - Support continuous listening.
 - Support barge-in (interrupt TTS and return to listening).
 - Handle command confirmations.
@@ -54,7 +54,7 @@ class AssistantState(str, Enum):
 
 
 # =====================================================================
-# BACKGROUND TASK SIGNALS
+# ASSISTANT MANAGER
 # =====================================================================
 
 class AssistantManager(QObject):
