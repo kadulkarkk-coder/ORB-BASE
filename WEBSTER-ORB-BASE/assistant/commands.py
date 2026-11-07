@@ -219,7 +219,7 @@ class CommandRouter:
             "knowledge search <query> · list knowledge · "
             "knowledge delete <title>.\n\n"
             "Actions folder commands:\n"
-            "actions · run action <action_id>.\n\n"
+            "actions · run action <action_id> [arguments].\n\n"
             "Only reviewed actions are available, and every action requires confirmation.\n\n"
             "Anything else is sent to the AI engine."
         )
@@ -232,9 +232,12 @@ class CommandRouter:
         query = raw_query.strip()
         if query.casefold() in {"actions", "list actions", "show actions"}:
             return self._cmd_list_actions()
-        match = re.fullmatch(r"run action\s+([a-z][a-z0-9_]{1,47})", query, re.IGNORECASE)
+        match = re.fullmatch(r"run action\s+([a-z][a-z0-9_]{1,47})(?:\s+(.+))?", query, re.IGNORECASE)
         if match:
-            return self._cmd_run_action(match.group(1).lower())
+            arguments = (match.group(2) or "").strip()
+            if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
+                return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
+            return self._cmd_run_action(match.group(1).lower(), arguments)
         return None
 
     def _cmd_list_actions(self) -> CommandResult:
@@ -246,17 +249,18 @@ class CommandRouter:
         lines = [f"{item.action_id} — {item.description}" for item in items]
         return CommandResult(True, "Available reviewed actions:\n" + "\n".join(lines), speak=False)
 
-    def _cmd_run_action(self, action_id: str) -> CommandResult:
+    def _cmd_run_action(self, action_id: str, arguments: str = "") -> CommandResult:
         if self._actions is None:
             return CommandResult(True, "The actions folder is unavailable.", level="warn")
         item = self._actions.get(action_id)
         if item is None:
             return CommandResult(True, f"No valid action named '{action_id}' was found.", level="warn")
+        argument_note = f"\nArguments: {arguments}" if arguments else ""
         return CommandResult(
             True,
-            f"Run action '{item.action_id}'?\n{item.description}\n\nThis action runs as your current user after confirmation.",
+            f"Run action '{item.action_id}'?\n{item.description}{argument_note}\n\nThis action runs as your current user after confirmation.",
             requires_confirmation=True,
-            action=lambda: self._actions.execute(item.action_id, expected_hash=item.content_hash),
+            action=lambda: self._actions.execute(item.action_id, expected_hash=item.content_hash, arguments=arguments),
             action_id=item.permission_id,
         )
 
