@@ -178,3 +178,121 @@ def show_desktop_overview() -> str:
     finally:
         user32.keybd_event(vk_lwin,0,keyup,0)
     return "Opened Windows Task View."
+
+
+# ---------------------------------------------------------------------------
+# G5.11–G5.16: Windows audio and media-key controls
+# ---------------------------------------------------------------------------
+
+def _send_windows_media_key(virtual_key: int, label: str) -> str:
+    if platform.system() != "Windows":
+        raise RuntimeError(f"{label} currently supports Windows only.")
+    user32 = ctypes.windll.user32
+    KEYUP = 0x0002
+    user32.keybd_event(virtual_key, 0, 0, 0)
+    user32.keybd_event(virtual_key, 0, KEYUP, 0)
+    return f"Sent {label} media key."
+
+def volume_up() -> str:
+    return _send_windows_media_key(0xAF, "volume up")
+
+def volume_down() -> str:
+    return _send_windows_media_key(0xAE, "volume down")
+
+def volume_mute() -> str:
+    return _send_windows_media_key(0xAD, "volume mute toggle")
+
+def media_play_pause() -> str:
+    return _send_windows_media_key(0xB3, "play/pause")
+
+def media_next() -> str:
+    return _send_windows_media_key(0xB0, "next track")
+
+def media_previous() -> str:
+    return _send_windows_media_key(0xB1, "previous track")
+
+
+# ---------------------------------------------------------------------------
+# G5.17–G5.19: Read-only system diagnostics
+# ---------------------------------------------------------------------------
+
+def system_status() -> str:
+    try:
+        import psutil
+    except ImportError as exc:
+        raise RuntimeError("Install project requirements to use system_status (psutil).") from exc
+
+    cpu = psutil.cpu_percent(interval=0.2)
+    memory = psutil.virtual_memory()
+    root = Path.home().anchor or str(Path.cwd().anchor)
+    try:
+        disk = psutil.disk_usage(root)
+    except (OSError, ValueError):
+        disk = psutil.disk_usage(str(Path.cwd().anchor or Path.cwd()))
+
+    gib = 1024 ** 3
+    return (
+        "System status\n"
+        f"CPU usage: {cpu:.1f}%\n"
+        f"RAM usage: {memory.percent:.1f}% "
+        f"({memory.used / gib:.1f} / {memory.total / gib:.1f} GiB)\n"
+        f"Disk usage ({root or 'current drive'}): {disk.percent:.1f}% "
+        f"({disk.used / gib:.1f} / {disk.total / gib:.1f} GiB)"
+    )
+
+def battery_status() -> str:
+    try:
+        import psutil
+    except ImportError as exc:
+        raise RuntimeError("Install project requirements to use battery_status (psutil).") from exc
+
+    battery = psutil.sensors_battery()
+    if battery is None:
+        return "No battery information is available (this device may not have a battery)."
+    state = "charging" if battery.power_plugged else "not charging"
+    remaining = ""
+    if battery.secsleft not in (psutil.POWER_TIME_UNLIMITED, psutil.POWER_TIME_UNKNOWN) and battery.secsleft >= 0:
+        hours, seconds = divmod(int(battery.secsleft), 3600)
+        minutes = seconds // 60
+        remaining = f"\nEstimated time remaining: {hours}h {minutes}m"
+    return f"Battery: {battery.percent:.0f}% ({state}){remaining}"
+
+def network_status() -> str:
+    try:
+        import psutil
+    except ImportError as exc:
+        raise RuntimeError("Install project requirements to use network_status (psutil).") from exc
+
+    stats = psutil.net_if_stats()
+    addresses = psutil.net_if_addrs()
+    active = []
+    for name, state in sorted(stats.items()):
+        if not state.isup:
+            continue
+        families = []
+        for address in addresses.get(name, []):
+            if getattr(address.family, "name", "") == "AF_INET":
+                families.append(address.address)
+        suffix = f" — IPv4 {', '.join(families)}" if families else ""
+        active.append(f"{name}: up{suffix}")
+    if not active:
+        return "No active network interfaces were reported."
+    return "Active network interfaces\n" + "\n".join(active[:12])
+
+
+# ---------------------------------------------------------------------------
+# G5.20: Local date and time
+# ---------------------------------------------------------------------------
+
+def current_datetime() -> str:
+    from datetime import datetime, timezone
+    now = datetime.now().astimezone()
+    zone = now.tzname() or "local timezone"
+    offset = now.strftime("%z")
+    if len(offset) == 5:
+        offset = f"{offset[:3]}:{offset[3:]}"
+    return (
+        f"Date: {now.strftime('%A, %d %B %Y')}\n"
+        f"Time: {now.strftime('%I:%M:%S %p')}\n"
+        f"Timezone: {zone} (UTC{offset})"
+    )
