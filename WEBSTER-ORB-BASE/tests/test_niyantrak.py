@@ -55,6 +55,12 @@ class TestCommandPermissionMetadata(unittest.TestCase):
         self.assertTrue(result.requires_confirmation)
         self.assertEqual(result.action_id, "sleep_display")
 
+    def test_quit_is_marked_for_confirmation(self):
+        result = self.router.route("quit")
+        self.assertTrue(result.handled)
+        self.assertTrue(result.requires_confirmation)
+        self.assertEqual(result.ui_action, "quit")
+
 
 class TestAssistantNiyantrakIntegration(unittest.TestCase):
     def _manager(self):
