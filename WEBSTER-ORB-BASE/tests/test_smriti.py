@@ -10,6 +10,7 @@ from pathlib import Path
 from memory import Smriti, SmritiError
 from assistant.commands import CommandRouter
 from assistant.assistant_manager import AssistantManager
+from assistant.karya import Karya
 
 
 class TestSmriti(unittest.TestCase):
@@ -174,6 +175,8 @@ class TestSmritiCommandRouter(unittest.TestCase):
             manager = AssistantManager()
 
         self.assertIs(manager.router._memory, manager.memory)
+        self.assertIsInstance(manager.karya, Karya)
+        manager.shutdown()
 
 
 if __name__ == "__main__":
