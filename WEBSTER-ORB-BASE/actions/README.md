@@ -108,3 +108,24 @@ and phrase-search are limited to recognised UTF-8 text formats and 64 KiB.
 Folder listing is capped at 100 immediate entries. Filename search is bounded
 to depth 4, 5,000 inspected filenames and 50 matches; it does not read file
 contents. The calculator accepts basic arithmetic only, not Python code.
+
+
+## G5.31–G5.40 file and text utilities
+
+- `run action copy_file "C:\\Users\\Student\\Documents\\a.txt | C:\\Users\\Student\\Documents\\a-copy.txt"`
+- `run action rename_file "C:\\Users\\Student\\Documents\\draft.txt | final.txt"`
+- `run action hash_file "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action word_count "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action text_statistics "C:\\Users\\Student\\Documents\\notes.txt"`
+- `run action convert_units 5 km to miles`
+- `run action generate_uuid`
+- `run action compare_text_files "C:\\Users\\Student\\Documents\\old.txt | C:\\Users\\Student\\Documents\\new.txt"`
+- `run action search_text_in_folder "C:\\Users\\Student\\Documents | WEBSTER"`
+- `run action validate_json_file "C:\\Users\\Student\\Documents\\settings.json"`
+
+Copy and rename never overwrite an existing destination. Copy and SHA-256 are
+limited to 100 MiB. Text analysis, comparison and JSON validation are limited
+to recognised UTF-8 text files up to 64 KiB. Folder text search is bounded to
+depth 3, 1,000 candidate files and 30 matches. JSON validation does not modify
+the file. Unit conversion supports a fixed set of common length, mass, time,
+volume and temperature units. All actions remain behind explicit confirmation.
