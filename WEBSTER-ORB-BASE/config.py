@@ -195,7 +195,7 @@ MONITOR_INTERVAL_S = _env_float("JARVIS_MONITOR_INTERVAL", 1.5)
 class AIConfig:
     # gemini | auto | openai | ollama | claude | offline
     provider: str = field(
-        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "auto")
+        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "offline")
     )
 
     gemini_model: str = field(
@@ -280,7 +280,7 @@ def anthropic_key_problem() -> str | None:
 def resolved_provider() -> str:
     """Resolve the configured provider, preferring Gemini in auto mode."""
 
-    choice = (AI.provider or "gemini").strip().lower()
+    choice = (AI.provider or "offline").strip().lower()
 
     aliases = {
         "google": "gemini",
