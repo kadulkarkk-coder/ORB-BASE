@@ -111,6 +111,15 @@ class TestGeminiEngine(unittest.TestCase):
         self.assertNotIn("GEMINI_API_KEY", engine.reason)
 
 
+    def test_empty_provider_defaults_to_offline_without_keys(self):
+        with patch.object(config.AI, "provider", ""), \\
+             patch("config.gemini_api_key", return_value=""), \\
+             patch("config.openai_api_key", return_value=""), \\
+             patch("config.anthropic_api_key", return_value=""):
+            engine = create_engine()
+
+        self.assertIsInstance(engine, OfflineEngine)
+
     def test_create_engine_selects_ollama(self):
         with patch.object(config.AI, "provider", "ollama"):
             engine = create_engine()
