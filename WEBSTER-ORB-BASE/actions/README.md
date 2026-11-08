@@ -24,8 +24,11 @@ Rules:
 - Restart WEBSTER after adding or replacing an action so its permission
   allowlist is rebuilt from the folder.
 - Ask WEBSTER for `actions` to see valid files.
-- Use `run action my_action` to request an action. WEBSTER asks for explicit
-  YES/NO confirmation before importing and running it.
+- Use `run action my_action` to request an action. Common readable intents also
+  work locally, for example `calculate 12 + 5`, `create folder <path>`,
+  `read my screen`, and `check my code <path>`.
+- WEBSTER asks for explicit YES/NO confirmation before importing and running
+  any extension action.
 
 ## Security boundary
 
