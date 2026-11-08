@@ -88,7 +88,7 @@ all the same entry; the verb is matched anywhere in the sentence and `launch` / 
 and `i want to open spotify` are all handled locally. 21 apps are allow-listed; anything
 else is refused by name.
 
-Anything else is sent to the AI engine.
+Recognised built-in commands and reviewed action intents run locally. Other free-form questions are sent to the selected AI engine; in the default offline mode WEBSTER explains that general AI reasoning is not connected.
 
 **Safety.** AI-generated text can never execute anything. Every action is a named Python
 handler behind an explicit pattern match, subprocesses are launched with argument lists
@@ -174,7 +174,7 @@ Copy `.env.example` to `.env`. Every value is optional — the HUD starts withou
 | `JARVIS_START_FULLSCREEN` | `false` starts windowed instead of fullscreen. |
 | `OPENAI_API_KEY` | Enables the OpenAI engine. Starts with `sk-`. Without it the HUD runs offline. |
 | `OPENAI_MODEL` | Model id (default `gpt-4o-mini`). |
-| `JARVIS_AI_PROVIDER` | `auto` (default), `openai`, `ollama`, `claude`, or `offline`. |
+| `JARVIS_AI_PROVIDER` | `offline` (default), `auto`, `gemini`, `openai`, `ollama`, or `claude`. |
 | `OLLAMA_HOST` / `OLLAMA_MODEL` | Local or remote Ollama. **No API key needed locally.** |
 | `OLLAMA_API_KEY` | Only for a hosted/proxied Ollama; blank for a local install. |
 | `ANTHROPIC_API_KEY` / `ANTHROPIC_MODEL` | Optional Claude backend instead of OpenAI. |
