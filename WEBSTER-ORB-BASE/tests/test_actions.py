@@ -45,6 +45,10 @@ class TestActionManager(unittest.TestCase):
         self.write_action("two.py", source)
         self.assertEqual(self.manager.discover(), [])
 
+    def test_repository_discovers_at_least_60_real_actions(self):
+        found = ActionManager().discover()
+        self.assertGreaterEqual(len(found), 60, [item.action_id for item in found])
+
     def test_action_manager_implementation_is_not_discovered(self):
         self.write_action(
             "action_manager.py",
@@ -111,6 +115,19 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
         result = self.router.route("actions")
         self.assertTrue(result.handled)
         self.assertIn("hello_action", result.text)
+
+    def test_natural_language_action_intent_is_local_and_confirmed(self):
+        (self.folder / "calculate.py").write_text(
+            'ACTION_ID = "calculate"\\n'
+            'DESCRIPTION = "Calculate a basic arithmetic expression."\\n'
+            'def run(): return "calculated: " + ACTION_ARGUMENTS\\n',
+            encoding="utf-8",
+        )
+        result = self.router.route("please calculate 2 + 2")
+        self.assertTrue(result.handled)
+        self.assertTrue(result.requires_confirmation)
+        self.assertIn("Arguments: 2 + 2", result.text)
+        self.assertEqual(result.action_id, "extension:calculate")
 
     def test_run_action_requires_explicit_confirmation(self):
         result = self.router.route("run action hello_action")
