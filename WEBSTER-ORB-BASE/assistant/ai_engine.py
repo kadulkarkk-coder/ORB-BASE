@@ -78,7 +78,7 @@ class OfflineEngine(AIEngine):
             return AIResult("Any time.", self.name)
         return AIResult(
             f"I can't reason about that in local mode — {self.reason} "
-            "Built-in commands (status, time, uptime, help) still work.",
+            "Built-in commands, Smriti/Gyaan features, and reviewed local actions still work without an API key.",
             self.name,
         )
 
