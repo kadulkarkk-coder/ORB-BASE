@@ -108,19 +108,20 @@ Linux), or with ElevenLabs if you configure a key.
 ## AI engine
 
 `AIEngine` in `assistant/ai_engine.py` is the seam — implement `process()` and the whole
-UI works against it unchanged. Four backends ship:
+UI works against it unchanged.
 
-- **`OpenAIEngine`** — OpenAI via the `openai` SDK (`gpt-4o-mini` by default). Used
-  automatically when `OPENAI_API_KEY` is set. **This is the default.**
-- **`OllamaEngine`** — local or self-hosted models through Ollama. See below.
-- **`ClaudeEngine`** — Anthropic Claude, for `ANTHROPIC_API_KEY`.
-- **`OfflineEngine`** — the fallback with nothing configured. Built-in commands still
-  work, and it says plainly that it cannot reason rather than inventing an answer.
+- **`OfflineEngine`** — **the default**. No API key, account, network connection or
+  model download is needed for built-in commands, Smriti/Gyaan storage and reviewed
+  local actions. It does not pretend to be a general-purpose reasoning model.
+- **`OllamaEngine`** — optional local models through Ollama; a normal local Ollama
+  installation does not need a cloud API key.
+- **`GeminiEngine`**, **`OpenAIEngine`** and **`ClaudeEngine`** — optional cloud
+  reasoning providers that require their respective credentials.
 
-`JARVIS_AI_PROVIDER=auto` (the default) picks whichever key is present, preferring
-OpenAI. Naming a provider explicitly (`openai` / `ollama` / `claude` / `offline`) never
-silently substitutes another — if it cannot run you get the offline engine and the reason
-why, rather than an answer from a backend you did not choose.
+`JARVIS_AI_PROVIDER=offline` is the default. Set `JARVIS_AI_PROVIDER=auto` only if
+you explicitly want WEBSTER to select a configured cloud provider automatically.
+Naming a provider explicitly never silently substitutes another — if it cannot run,
+WEBSTER falls back to the offline engine and reports the reason.
 
 ### Using Ollama
 
