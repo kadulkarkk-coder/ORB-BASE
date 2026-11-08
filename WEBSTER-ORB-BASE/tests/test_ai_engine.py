@@ -114,7 +114,7 @@ class TestGeminiEngine(unittest.TestCase):
     def test_empty_provider_defaults_to_offline_without_keys(self):
         with patch.object(config.AI, "provider", ""), \
              patch("config.gemini_api_key", return_value=""), \
-             patch("config.openai_api_key", return_value=""), \\
+             patch("config.openai_api_key", return_value=""), \
              patch("config.anthropic_api_key", return_value=""):
             engine = create_engine()
 
