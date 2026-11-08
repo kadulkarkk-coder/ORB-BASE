@@ -238,6 +238,52 @@ class CommandRouter:
             if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
                 return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
             return self._cmd_run_action(match.group(1).lower(), arguments)
+
+        if self._actions is None:
+            return None
+
+        # Natural-language shortcuts are deterministic local matches; no AI is involved.
+        aliases = (
+            ("read my screen", "read_screen"),
+            ("read screen", "read_screen"),
+            ("record camera", "camera_record"),
+            ("record from camera", "camera_record"),
+            ("check my code", "check_code"),
+            ("analyse image", "analyse_image"),
+            ("analyze image", "analyse_image"),
+            ("generate an image", "generate_image"),
+            ("generate a video", "generate_video"),
+            ("get cursor position", "cursor_position"),
+            ("where is my cursor", "cursor_position"),
+            ("show running processes", "top_processes"),
+            ("list running processes", "top_processes"),
+            ("check python environment", "python_environment"),
+        )
+        for phrase, action_id in aliases:
+            found = re.search(rf"\b{re.escape(phrase)}\b", query, re.IGNORECASE)
+            if found:
+                arguments = query[found.end():].strip(" \t:,-")
+                if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
+                    return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
+                return self._cmd_run_action(action_id, arguments)
+
+        # Readable action IDs work as phrases (e.g. "create folder", "calculate").
+        # Existing built-in commands retain priority over extension actions.
+        reserved = {
+            "action_manager", "battery_status", "current_datetime",
+            "disk_volumes", "network_status", "open_app",
+            "system_status", "uptime_status",
+        }
+        for item in self._actions.discover():
+            if item.action_id in reserved:
+                continue
+            phrase = item.action_id.replace("_", " ")
+            found = re.search(rf"\b{re.escape(phrase)}\b", query, re.IGNORECASE)
+            if found:
+                arguments = query[found.end():].strip(" \t:,-")
+                if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
+                    return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
+                return self._cmd_run_action(item.action_id, arguments)
         return None
 
     def _cmd_list_actions(self) -> CommandResult:
