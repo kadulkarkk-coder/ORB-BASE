@@ -118,9 +118,9 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
 
     def test_natural_language_action_intent_is_local_and_confirmed(self):
         (self.folder / "calculate.py").write_text(
-            'ACTION_ID = "calculate"\\n'
-            'DESCRIPTION = "Calculate a basic arithmetic expression."\\n'
-            'def run(): return "calculated: " + ACTION_ARGUMENTS\\n',
+            'ACTION_ID = "calculate"\n'
+            'DESCRIPTION = "Calculate a basic arithmetic expression."\n'
+            'def run(): return "calculated: " + ACTION_ARGUMENTS\n',
             encoding="utf-8",
         )
         result = self.router.route("please calculate 2 + 2")
