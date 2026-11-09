@@ -142,6 +142,13 @@ class OfflineActionRouter:
         if not request:
             return None
         ranked: list[tuple[float, object]] = []
+        intent_verbs = {
+            "create", "open", "display", "read", "search", "delete",
+            "rename", "move", "copy", "calculate", "record", "analyze",
+            "generate", "check", "review", "extract", "compress", "play",
+            "pause", "mute", "lock", "switch", "maximize", "minimize",
+            "convert", "validate", "inspect", "get", "where",
+        }
         for action in actions:
             action_id = str(getattr(action, "action_id", ""))
             description = str(getattr(action, "description", ""))
@@ -153,6 +160,10 @@ class OfflineActionRouter:
             # Intent/action words matter more than incidental description words.
             overlap = request & metadata
             if not overlap:
+                continue
+            # A lone noun ("screen", "battery", "folder") is not enough to
+            # infer an action. Require an intent verb or a two-term match.
+            if len(overlap) < 2 and not (request & intent_verbs):
                 continue
             precision = len(overlap) / max(1, len(request))
             recall = len(overlap) / max(1, len(metadata))
