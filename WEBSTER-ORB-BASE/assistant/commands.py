@@ -24,6 +24,7 @@ import config
 from memory import SmritiError
 from knowledge import GyaanError
 from system.system_info import format_duration, host_info
+from assistant.offline_action_router import OfflineActionRouter
 
 
 @dataclass
@@ -218,10 +219,11 @@ class CommandRouter:
             "knowledge add <title> = <content> · "
             "knowledge search <query> · list knowledge · "
             "knowledge delete <title>.\n\n"
-            "Actions folder commands:\n"
-            "actions · run action <action_id> [arguments].\n\n"
-            "Only reviewed actions are available, and every action requires confirmation.\n\n"
-            "Anything else is sent to the AI engine."
+            "Actions: describe what you want in everyday language; I will match it locally.\n"
+            "For example: 'make a folder for my project', 'calculate 18 times 24', "
+            "or 'read the text on my screen'.\n\n"
+            "If a request is ambiguous, I will ask. Actions require confirmation before running.\n\n"
+            "You can also use: actions · run action <action_id> [arguments]."
         )
 
     # -----------------------------------------------------------------
@@ -229,62 +231,61 @@ class CommandRouter:
     # -----------------------------------------------------------------
 
     def _route_actions(self, raw_query: str) -> CommandResult | None:
+        """Resolve natural language to an installed action without cloud AI."""
         query = raw_query.strip()
         if query.casefold() in {"actions", "list actions", "show actions"}:
             return self._cmd_list_actions()
-        match = re.fullmatch(r"run action\s+([a-z][a-z0-9_]{1,47})(?:\s+(.+))?", query, re.IGNORECASE)
+
+        # Keep the explicit form for diagnostics and power users.
+        match = re.fullmatch(
+            r"run action\s+([a-z][a-z0-9_]{1,47})(?:\s+(.+))?",
+            query,
+            re.IGNORECASE,
+        )
         if match:
             arguments = (match.group(2) or "").strip()
             if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
-                return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
+                return CommandResult(
+                    True,
+                    "Action arguments must be a single line of at most 2048 characters.",
+                    level="warn",
+                )
             return self._cmd_run_action(match.group(1).lower(), arguments)
 
         if self._actions is None:
             return None
 
-        # Natural-language shortcuts are deterministic local matches; no AI is involved.
-        aliases = (
-            ("read my screen", "read_screen"),
-            ("read screen", "read_screen"),
-            ("record camera", "camera_record"),
-            ("record from camera", "camera_record"),
-            ("check my code", "check_code"),
-            ("analyse image", "analyse_image"),
-            ("analyze image", "analyse_image"),
-            ("generate an image", "generate_image"),
-            ("generate a video", "generate_video"),
-            ("get cursor position", "cursor_position"),
-            ("where is my cursor", "cursor_position"),
-            ("show running processes", "top_processes"),
-            ("list running processes", "top_processes"),
-            ("check python environment", "python_environment"),
-        )
-        for phrase, action_id in aliases:
-            found = re.search(rf"\b{re.escape(phrase)}\b", query, re.IGNORECASE)
-            if found:
-                arguments = query[found.end():].strip(" \t:,-")
-                if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
-                    return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
-                return self._cmd_run_action(action_id, arguments)
+        available = self._actions.discover()
+        if not available:
+            return None
 
-        # Readable action IDs work as phrases (e.g. "create folder", "calculate").
-        # Existing built-in commands retain priority over extension actions.
-        reserved = {
-            "action_manager", "battery_status", "current_datetime",
-            "disk_volumes", "network_status", "open_app",
-            "system_status", "uptime_status",
-        }
-        for item in self._actions.discover():
-            if item.action_id in reserved:
-                continue
-            phrase = item.action_id.replace("_", " ")
-            found = re.search(rf"\b{re.escape(phrase)}\b", query, re.IGNORECASE)
-            if found:
-                arguments = query[found.end():].strip(" \t:,-")
-                if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
-                    return CommandResult(True, "Action arguments must be a single line of at most 2048 characters.", level="warn")
-                return self._cmd_run_action(item.action_id, arguments)
-        return None
+        intent = OfflineActionRouter().route(query, available)
+        if intent is None:
+            return None
+
+        # A close score means the request could refer to more than one action.
+        # Never choose silently: show the candidates and ask for clarification.
+        if not intent.action_id:
+            choices = ", ".join(
+                f"{action_id} ({score:.2f})"
+                for action_id, score in intent.alternatives
+            )
+            return CommandResult(
+                True,
+                "I found more than one possible action. Which one did you mean? "
+                + choices,
+                level="warn",
+                speak=False,
+            )
+
+        arguments = intent.arguments
+        if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
+            return CommandResult(
+                True,
+                "The extracted action details must be a single line of at most 2048 characters.",
+                level="warn",
+            )
+        return self._cmd_run_action(intent.action_id, arguments)
 
     def _cmd_list_actions(self) -> CommandResult:
         if self._actions is None:
