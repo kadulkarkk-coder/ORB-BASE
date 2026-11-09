@@ -25,6 +25,8 @@ _EQUIV = {
     "erase": "delete", "rename": "rename", "move": "move",
     "copy": "copy", "duplicate": "copy", "calculate": "calculate",
     "compute": "calculate", "work": "calculate",
+    "times": "calculate", "plus": "calculate", "minus": "calculate",
+    "divided": "calculate", "multiplied": "calculate",
     "analyse": "analyze", "analyse": "analyze",
     "capture": "record", "film": "record", "snapshot": "record",
     "screenshot": "screen", "display": "screen",
