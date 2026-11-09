@@ -101,6 +101,21 @@ def _argument_tail(query: str, action_id: str) -> str:
                     return f"~/{location.title()}/{name}"
                 if re.search(r"\b(?:called|named)\b", query, re.I):
                     return name
+    if action_id == "calculate":
+        match = re.search(r"(?:calculate|compute|solve)\s+(.+)$", query, re.I)
+        if match:
+            expression = match.group(1).strip()
+            replacements = (
+                (r"\bmultiplied\s+by\b|\btimes\b", "*"),
+                (r"\bdivided\s+by\b|\bover\b", "/"),
+                (r"\bplus\b", "+"),
+                (r"\bminus\b", "-"),
+                (r"\bmod(?:ulo)?\b", "%"),
+            )
+            for pattern, symbol in replacements:
+                expression = re.sub(pattern, symbol, expression, flags=re.I)
+            return expression.strip()
+
     words = action_id.replace("_", " ")
     patterns = [
         rf"\b{re.escape(words)}\b",
