@@ -82,7 +82,7 @@ class ActionIntent:
 def _tokens(value: str) -> set[str]:
     words = re.findall(r"[a-z0-9]+", (value or "").lower())
     normalized = {_EQUIV.get(word, word) for word in words}
-    return {word for word in normalized if word not in _STOP and len(word) > 1}
+    return {word for word in normalized if word not in _STOP and len(word) > 1 and not word.isdigit()}
 
 
 def _argument_tail(query: str, action_id: str) -> str:
