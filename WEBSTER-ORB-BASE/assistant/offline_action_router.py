@@ -85,6 +85,22 @@ def _tokens(value: str) -> set[str]:
 
 def _argument_tail(query: str, action_id: str) -> str:
     """Remove the natural-language intent prefix, preserving the user's data."""
+    # Convert common folder-creation language into an explicit path. This is
+    # still only a proposal: the action is shown to the user before execution.
+    if action_id == "create_folder":
+        match = re.search(
+            r"(?:folder|directory)(?:\s+(?:called|named))?\s+(.+?)(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
+            query,
+            re.IGNORECASE,
+        )
+        if match:
+            name = match.group(1).strip(" \t:,-'\"")
+            location = (match.group(2) or "").lower()
+            if name:
+                if location:
+                    return f"~/{location.title()}/{name}"
+                if re.search(r"\b(?:called|named)\b", query, re.I):
+                    return name
     words = action_id.replace("_", " ")
     patterns = [
         rf"\b{re.escape(words)}\b",
