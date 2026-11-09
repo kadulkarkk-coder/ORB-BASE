@@ -129,6 +129,17 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
         self.assertEqual(result.action_id, "extension:create_folder")
         self.assertIn("Science Project", result.text)
 
+    def test_spoken_arithmetic_is_normalized_offline(self):
+        (self.folder / "calculate.py").write_text(
+            'ACTION_ID = "calculate"\n'
+            'DESCRIPTION = "Calculate a basic arithmetic expression."\n'
+            'def run(): return "calculated: " + ACTION_ARGUMENTS\n',
+            encoding="utf-8",
+        )
+        result = self.router.route("calculate 18 times 24")
+        self.assertTrue(result.handled)
+        self.assertIn("Arguments: 18 * 24", result.text)
+
     def test_unknown_request_does_not_guess_an_action(self):
         (self.folder / "create_folder.py").write_text(
             'ACTION_ID = "create_folder"\n'
