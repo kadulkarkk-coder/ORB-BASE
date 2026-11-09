@@ -89,12 +89,12 @@ def _argument_tail(query: str, action_id: str) -> str:
     # still only a proposal: the action is shown to the user before execution.
     if action_id == "create_folder":
         match = re.search(
-            r"(?:folder|directory)(?:\s+(?:called|named))?\s+(.+?)(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
+            r"(?:folder|directory)(?:\s+(?:called|named|for))?\s+(.+?)(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
             query,
             re.IGNORECASE,
         )
         if match:
-            name = match.group(1).strip(" \t:,-'\"")
+            name = re.sub(r"^my\s+", "", match.group(1).strip(" \t:,-'\""), flags=re.I)
             location = (match.group(2) or "").lower()
             if name:
                 if location:
