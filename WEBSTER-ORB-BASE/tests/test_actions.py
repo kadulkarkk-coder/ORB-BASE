@@ -116,6 +116,29 @@ class TestActionCommandsAndPermissions(unittest.TestCase):
         self.assertTrue(result.handled)
         self.assertIn("hello_action", result.text)
 
+    def test_plain_language_folder_request_is_routed_without_action_id(self):
+        (self.folder / "create_folder.py").write_text(
+            'ACTION_ID = "create_folder"\n'
+            'DESCRIPTION = "Create a new folder at the explicitly supplied path."\n'
+            'def run(): return "folder: " + ACTION_ARGUMENTS\n',
+            encoding="utf-8",
+        )
+        result = self.router.route("please make a folder called Science Project")
+        self.assertTrue(result.handled)
+        self.assertTrue(result.requires_confirmation)
+        self.assertEqual(result.action_id, "extension:create_folder")
+        self.assertIn("Science Project", result.text)
+
+    def test_unknown_request_does_not_guess_an_action(self):
+        (self.folder / "create_folder.py").write_text(
+            'ACTION_ID = "create_folder"\n'
+            'DESCRIPTION = "Create a new folder at the explicitly supplied path."\n'
+            'def run(): return "ok"\n',
+            encoding="utf-8",
+        )
+        result = self.router.route("tell me a fascinating fact about Saturn")
+        self.assertFalse(result.handled)
+
     def test_natural_language_action_intent_is_local_and_confirmed(self):
         (self.folder / "calculate.py").write_text(
             'ACTION_ID = "calculate"\n'
