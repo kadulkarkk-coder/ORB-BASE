@@ -255,7 +255,15 @@ class CommandRouter:
         if self._actions is None:
             return None
 
-        available = self._actions.discover()
+        reserved = {
+            "action_manager", "battery_status", "current_datetime",
+            "disk_volumes", "network_status", "open_app",
+            "system_status", "uptime_status",
+        }
+        available = [
+            item for item in self._actions.discover()
+            if item.action_id not in reserved
+        ]
         if not available:
             return None
 
