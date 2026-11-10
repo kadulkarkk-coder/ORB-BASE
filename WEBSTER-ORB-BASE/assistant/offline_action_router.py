@@ -208,7 +208,7 @@ def _argument_tail(query: str, action_id: str) -> str:
         if match:
             name = match.group(1).strip(" \t:,-'\"")
             location = (match.group(2) or "").lower()
-            name = re.sub(r"^(?:called|named|for)\s+", "", name, flags=re.I)
+            name = re.sub(r"^(?:(?:called|named|for)\s+|my\s+)+", "", name, flags=re.I)
             if name:
                 return f"~/{location.title()}/{name}" if location else name
 
