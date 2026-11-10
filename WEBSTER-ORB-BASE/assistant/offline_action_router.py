@@ -138,7 +138,7 @@ _INTENT_WORDS = {
     "compress", "play", "pause", "mute", "lock", "switch", "maximize",
     "minimize", "convert", "validate", "inspect", "list", "increase",
     "decrease", "close", "visit", "lookup", "resolve", "count", "compare",
-    "append", "write", "control", "describe", "greet",
+    "append", "write", "control", "describe", "greet", "debug",
 }
 
 _PHRASE_REWRITES = (
@@ -173,6 +173,12 @@ def _canonical_words(value: str) -> list[str]:
             word = word[:-2]
         elif word.endswith("s") and len(word) > 4 and not word.endswith("ss"):
             word = word[:-1]
+        word = {
+            "creat": "create", "writ": "write", "mak": "make",
+            "delet": "delete", "calculat": "calculate",
+            "generat": "generate", "debugg": "debug",
+            "runn": "run", "copi": "copy", "movi": "move",
+        }.get(word, word)
         words.append(_SYNONYMS.get(word, word))
     return words
 
