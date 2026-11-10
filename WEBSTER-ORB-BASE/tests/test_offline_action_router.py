@@ -54,6 +54,12 @@ class TestOfflineActionRouter(unittest.TestCase):
         self.assertEqual(result.action_id, "calculate")
         self.assertEqual(result.arguments, "18 * 24 + 6")
 
+    def test_question_form_arithmetic_is_recognized(self):
+        result = self.router.route("what is 18 times 24", self.actions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.action_id, "calculate")
+        self.assertEqual(result.arguments, "18 * 24")
+
     def test_screen_reading_is_not_confused_with_file_reading(self):
         result = self.router.route("read what's on my screen", self.actions)
         self.assertIsNotNone(result)
