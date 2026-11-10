@@ -246,9 +246,39 @@ class OfflineActionRouter:
         self,
         minimum_score: float = 0.34,
         ambiguity_gap: float = 0.09,
+        semantic_matcher: object | None = None,
     ) -> None:
         self.minimum_score = minimum_score
         self.ambiguity_gap = ambiguity_gap
+        # Lazy and optional: absence of FastEmbed never breaks offline commands.
+        self.semantic_matcher = semantic_matcher
+
+    def extract_arguments(self, query: str, action_id: str) -> str:
+        """Expose the same conservative extractor for multi-turn clarification."""
+        return _argument_tail(query, action_id)
+
+    def _semantic_route(self, query: str, actions: list[object]) -> ActionIntent | None:
+        matcher = self.semantic_matcher
+        if matcher is None:
+            try:
+                from assistant.local_semantic import LocalSemanticMatcher
+                matcher = LocalSemanticMatcher()
+                self.semantic_matcher = matcher
+            except Exception:
+                return None
+        try:
+            result = matcher.match(query, actions)
+        except Exception:
+            return None
+        if not result:
+            return None
+        action_id, score, alternatives = result
+        return ActionIntent(
+            action_id=action_id,
+            arguments=_argument_tail(query, action_id) if action_id else "",
+            score=score,
+            alternatives=alternatives,
+        )
 
     def route(self, query: str, actions: Iterable[object]) -> ActionIntent | None:
         query_words = _canonical_words(query)
@@ -302,7 +332,9 @@ class OfflineActionRouter:
 
         ranked.sort(key=lambda pair: pair[0], reverse=True)
         if not ranked or ranked[0][0] < self.minimum_score:
-            return None
+            # Semantic understanding is a fallback, never a prerequisite.
+            # If the optional local model is unavailable, abstain safely.
+            return self._semantic_route(query, list(actions))
 
         best_score, best = ranked[0]
         alternatives = tuple(
