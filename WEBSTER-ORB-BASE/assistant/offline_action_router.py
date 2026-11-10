@@ -206,17 +206,24 @@ def _argument_tail(query: str, action_id: str) -> str:
         return expression.strip(" ?")
 
     if action_id == "create_folder":
-        match = re.search(
-            r"\b(?:folder|directory)\b(?:\s+(?:called|named|for))?\s+(.+?)"
-            r"(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
+        location_match = re.search(
+            r"\b(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads)\b",
             query, re.I,
+        )
+        location = location_match.group(1).title() if location_match else ""
+        cleaned = query
+        if location_match:
+            cleaned = cleaned[:location_match.start()] + " " + cleaned[location_match.end():]
+        match = re.search(
+            r"\b(?:folder|directory)\b(?:\s+(?:called|named|for))?\s+(.+)$",
+            cleaned, re.I,
         )
         if match:
             name = match.group(1).strip(" \t:,-'\"")
-            location = (match.group(2) or "").lower()
             name = re.sub(r"^(?:(?:called|named|for)\s+|my\s+)+", "", name, flags=re.I)
-            if name:
-                return f"~/{location.title()}/{name}" if location else name
+            name = re.sub(r"\s+(?:on|in)\s+(?:my\s+)?(?:desktop|documents|downloads)$", "", name, flags=re.I).strip()
+            if name and name.casefold() not in {"a", "the", "new"}:
+                return f"~/{location}/{name}" if location else name
 
     patterns = {
         "open_app": r"\b(?:open|launch|start|run|fire\s+up|bring\s+up)\s+(.+)$",
@@ -281,6 +288,7 @@ class OfflineActionRouter:
         )
 
     def route(self, query: str, actions: Iterable[object]) -> ActionIntent | None:
+        actions = list(actions)
         query_words = _canonical_words(query)
         request = _unique(query_words)
         if not request:
