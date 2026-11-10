@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 class LocalSemanticMatcher:
     """Lazy local embedding matcher with safe fallback when unavailable."""
 
-    DEFAULT_MODEL = "sentence-transformers/all-MiniLM-L6-v2"
+    DEFAULT_MODEL = "BAAI/bge-small-en-v1.5"
 
     def __init__(self, threshold: float = 0.48, ambiguity_gap: float = 0.045):
         self.threshold = float(threshold)
@@ -25,6 +25,7 @@ class LocalSemanticMatcher:
         self._model = None
         self._failed = False
         self._lock = threading.Lock()
+        self._action_vectors: dict[str, tuple[str, object]] = {}
 
     @property
     def available(self) -> bool:
@@ -68,19 +69,30 @@ class LocalSemanticMatcher:
         if not candidates or not query.strip():
             return None
         try:
-            texts = [query.strip()] + [self._action_text(item) for item in candidates]
-            vectors = list(model.embed(texts))
-            if len(vectors) != len(texts):
+            # Encode action descriptions once and reuse them until metadata changes.
+            missing = []
+            for item in candidates:
+                action_id = str(item.action_id)
+                action_text = self._action_text(item)
+                cached = self._action_vectors.get(action_id)
+                if cached is None or cached[0] != action_text:
+                    missing.append((action_id, action_text))
+            if missing:
+                vectors = model.embed([item[1] for item in missing])
+                for (action_id, action_text), vector in zip(missing, vectors):
+                    self._action_vectors[action_id] = (action_text, vector)
+
+            query_vector = next(iter(model.embed([query.strip()])), None)
+            if query_vector is None:
                 return None
-            query_vector = vectors[0]
             scored = []
-            for item, vector in zip(candidates, vectors[1:]):
-                # FastEmbed returns normalized embeddings for the selected model;
-                # cosine is calculated explicitly for model-agnostic behavior.
+            for item in candidates:
+                action_id = str(item.action_id)
+                vector = self._action_vectors[action_id][1]
                 denom = (float((query_vector * query_vector).sum()) ** 0.5
                          * float((vector * vector).sum()) ** 0.5)
                 score = float((query_vector * vector).sum()) / denom if denom else 0.0
-                scored.append((score, str(item.action_id)))
+                scored.append((score, action_id))
             scored.sort(key=lambda pair: pair[0], reverse=True)
             if not scored or scored[0][0] < self.threshold:
                 return None
