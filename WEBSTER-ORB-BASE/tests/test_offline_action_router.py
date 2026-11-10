@@ -78,6 +78,35 @@ class TestOfflineActionRouter(unittest.TestCase):
         result = self.router.route("folder", self.actions)
         self.assertIsNone(result)
 
+
+    def test_semantic_fallback_handles_unfamiliar_wording(self):
+        class FakeSemanticMatcher:
+            def match(self, query, actions):
+                self.query = query
+                return ("create_folder", 0.81, ())
+        matcher = FakeSemanticMatcher()
+        router = OfflineActionRouter(semantic_matcher=matcher)
+        result = router.route("prepare a new workspace container", self.actions)
+        self.assertIsNotNone(result)
+        self.assertEqual(result.action_id, "create_folder")
+        self.assertEqual(matcher.query, "prepare a new workspace container")
+
+    def test_semantic_fallback_can_abstain(self):
+        class FakeSemanticMatcher:
+            def match(self, query, actions):
+                return None
+        router = OfflineActionRouter(semantic_matcher=FakeSemanticMatcher())
+        result = router.route("tell me a story about Saturn", self.actions)
+        self.assertIsNone(result)
+
+    def test_argument_extractor_supports_followup_context(self):
+        router = OfflineActionRouter()
+        combined = "create a folder on desktop called Science Project"
+        self.assertEqual(
+            router.extract_arguments(combined, "create_folder"),
+            "~/Desktop/Science Project",
+        )
+
     def test_input_order_does_not_change_clear_winner(self):
         query = "read the text visible on my screen"
         forward = self.router.route(query, self.actions)
