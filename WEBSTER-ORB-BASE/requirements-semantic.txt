@@ -1,0 +1,3 @@
+# Optional local semantic intent engine (no cloud API).
+# Install separately; the keyword router remains available without this package.
+fastembed>=0.7,<1
