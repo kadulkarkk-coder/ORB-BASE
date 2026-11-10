@@ -287,7 +287,7 @@ class CommandRouter:
                     speak=False,
                 )
             self._pending_action_context = None
-            if len(arguments) > 2048 or any(ch in arguments for ch in "\\r\\n\\x00"):
+            if len(arguments) > 2048 or any(ch in arguments for ch in "\r\n\x00"):
                 return CommandResult(True, "The extracted action details are invalid or too long.", level="warn")
             return self._cmd_run_action(pending_id, arguments)
 
