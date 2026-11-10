@@ -1,74 +1,14 @@
-"""Offline intent routing for reviewed WEBSTER extension actions.
+"""Dependency-free natural-language intent routing for WEBSTER actions.
 
-This is deliberately dependency-free: it ranks action metadata and common
-language equivalents locally. It never imports or executes an action. The
-caller must still obtain Niyantrak confirmation before execution.
+The router only classifies requests and extracts a proposed argument string.
+It never imports or executes an action. CommandRouter/Niyantrak remain
+responsible for clarification, validation, and explicit execution approval.
 """
 from __future__ import annotations
 
 import re
 from dataclasses import dataclass
 from typing import Iterable
-
-
-_STOP = {
-    "a", "an", "the", "my", "your", "please", "could", "would", "you",
-    "can", "will", "me", "i", "want", "need", "to", "for", "on", "in",
-    "at", "with", "from", "of", "it", "this", "that", "is", "are",
-    "webster", "jarvis", "hey", "now", "just", "some",
-}
-_EQUIV = {
-    "make": "create", "build": "create", "new": "create",
-    "launch": "open", "start": "open", "run": "open",
-    "show": "display", "view": "display", "find": "search",
-    "look": "search", "locate": "search", "remove": "delete",
-    "erase": "delete", "rename": "rename", "move": "move",
-    "copy": "copy", "duplicate": "copy", "calculate": "calculate",
-    "compute": "calculate", "work": "calculate",
-    "times": "calculate", "plus": "calculate", "minus": "calculate",
-    "divided": "calculate", "multiplied": "calculate",
-    "analyse": "analyze", "analyse": "analyze",
-    "capture": "record", "film": "record", "snapshot": "record",
-    "screenshot": "screen", "display": "screen",
-    "folder": "folder", "directory": "folder",
-    "application": "app", "program": "app", "software": "app",
-    "picture": "image", "photo": "image", "photograph": "image",
-    "movie": "video", "clip": "video",
-    "pc": "computer", "machine": "computer",
-}
-# These add ordinary user vocabulary to the action's own ID/description.
-_INTENT_TERMS = {
-    "create_folder": {"make", "build", "directory", "folder", "desktop"},
-    "create_text_file": {"make", "write", "new", "document", "file", "txt"},
-    "read_text_file": {"read", "open", "contents", "text", "file"},
-    "append_text_file": {"add", "append", "write", "text", "file"},
-    "calculate": {"math", "solve", "compute", "work", "sum", "equation"},
-    "open_app": {"launch", "start", "open", "application", "program"},
-    "open_file": {"open", "launch", "view", "document"},
-    "open_folder": {"open", "browse", "directory", "folder"},
-    "search_files": {"find", "locate", "search", "filename", "file"},
-    "search_text_in_folder": {"find", "search", "inside", "text", "folder"},
-    "find_text_in_file": {"find", "search", "inside", "text", "file"},
-    "read_screen": {"read", "screen", "display", "ocr", "visible", "text"},
-    "analyse_image": {"analyze", "image", "picture", "photo", "inspect"},
-    "generate_image": {"generate", "create", "draw", "image", "picture"},
-    "generate_video": {"generate", "create", "video", "movie", "clip"},
-    "camera_record": {"record", "camera", "video", "capture", "film"},
-    "top_processes": {"process", "running", "tasks", "applications"},
-    "system_status": {"system", "status", "health", "overview"},
-    "battery_status": {"battery", "charge", "power"},
-    "network_status": {"network", "internet", "connection", "wifi"},
-    "disk_volumes": {"disk", "drive", "storage", "volume"},
-    "python_environment": {"python", "environment", "packages", "interpreter"},
-    "check_code": {"check", "review", "inspect", "debug", "code", "source"},
-    "create_zip_archive": {"zip", "compress", "archive", "folder", "files"},
-    "extract_zip_archive": {"extract", "unzip", "archive", "zip"},
-    "copy_file": {"copy", "duplicate", "file"},
-    "move_file": {"move", "relocate", "file"},
-    "rename_file": {"rename", "change", "filename", "file"},
-    "delete_file": {"delete", "remove", "file"},
-    "open_website": {"website", "webpage", "browser", "url"},
-}
 
 
 @dataclass(frozen=True)
@@ -79,128 +19,303 @@ class ActionIntent:
     alternatives: tuple[tuple[str, float], ...] = ()
 
 
-def _tokens(value: str) -> set[str]:
-    words = re.findall(r"[a-z0-9]+", (value or "").lower())
-    normalized = {_EQUIV.get(word, word) for word in words}
-    return {word for word in normalized if word not in _STOP and len(word) > 1 and not word.isdigit()}
+_STOP = {
+    "a", "an", "the", "my", "your", "our", "their", "please", "could",
+    "would", "you", "can", "will", "me", "i", "want", "need", "to",
+    "for", "on", "in", "at", "with", "from", "of", "it", "this",
+    "that", "is", "are", "am", "was", "were", "be", "been", "being",
+    "webster", "jarvis", "hey", "now", "just", "some", "something",
+    "kindly", "hey", "there", "do", "does", "did",
+}
+
+# Canonical words make common spoken variants comparable without an API.
+_SYNONYMS = {
+    "make": "create", "build": "create", "construct": "create",
+    "generate": "create", "launch": "open", "start": "open",
+    "fire": "open", "bring": "open", "show": "display",
+    "view": "display", "see": "display", "find": "search",
+    "locate": "search", "look": "search", "hunt": "search",
+    "remove": "delete", "erase": "delete", "trash": "delete",
+    "duplicate": "copy", "replicate": "copy", "relocate": "move",
+    "rename": "rename", "compute": "calculate", "solve": "calculate",
+    "work": "calculate", "times": "multiply", "multiplied": "multiply",
+    "plus": "add", "minus": "subtract", "divided": "divide",
+    "analyse": "analyze", "inspect": "analyze", "examine": "analyze",
+    "capture": "record", "film": "record", "snapshot": "screenshot",
+    "directory": "folder", "directories": "folder", "dirs": "folder",
+    "applications": "app", "application": "app", "program": "app",
+    "programs": "app", "software": "app", "picture": "image",
+    "photo": "image", "photograph": "image", "pictures": "image",
+    "movie": "video", "clip": "video", "films": "video",
+    "wifi": "network", "wi-fi": "network", "pc": "computer",
+    "machine": "computer", "laptop": "computer", "desktop": "computer",
+    "battery": "battery", "charge": "battery", "charging": "battery",
+    "contents": "content", "documents": "document", "docs": "document",
+    "files": "file", "folders": "folder", "drives": "drive",
+    "volumes": "drive", "storage": "drive", "internet": "network",
+    "website": "web", "webpage": "web", "browser": "web",
+    "sourcecode": "code", "scripts": "code", "script": "code",
+    "debugging": "debug", "errors": "error", "bugs": "error",
+    "muted": "mute", "silence": "mute", "unmute": "volume",
+    "louder": "volume", "quieter": "volume", "sound": "volume",
+    "cursor": "pointer", "mouse": "pointer",
+    "screenshot": "screenshot", "screen": "screen", "display": "screen",
+}
+
+# Intent vocabulary is deliberately separated from object vocabulary.
+# This prevents a request such as "folder" from selecting a random action.
+_ACTION_TERMS: dict[str, set[str]] = {
+    "create_folder": {"create", "folder", "directory"},
+    "create_text_file": {"create", "write", "file", "text", "document"},
+    "append_text_file": {"append", "add", "write", "file", "text"},
+    "read_text_file": {"read", "open", "file", "text", "content"},
+    "open_file": {"open", "display", "file", "document"},
+    "open_folder": {"open", "display", "folder", "directory"},
+    "open_app": {"open", "launch", "app", "program"},
+    "open_website": {"open", "visit", "web", "url"},
+    "search_files": {"search", "find", "file"},
+    "search_text_in_folder": {"search", "find", "text", "folder"},
+    "find_text_in_file": {"search", "find", "text", "file"},
+    "copy_file": {"copy", "duplicate", "file"},
+    "move_file": {"move", "relocate", "file"},
+    "rename_file": {"rename", "change", "file", "name"},
+    "delete_file": {"delete", "remove", "file"},
+    "create_zip_archive": {"create", "compress", "zip", "archive"},
+    "extract_zip_archive": {"extract", "unzip", "zip", "archive"},
+    "inspect_zip_archive": {"inspect", "list", "zip", "archive"},
+    "calculate": {"calculate", "math", "solve", "expression"},
+    "convert_units": {"convert", "unit", "measurement"},
+    "word_count": {"count", "word", "words", "text"},
+    "text_statistics": {"analyze", "statistics", "text"},
+    "compare_text_files": {"compare", "diff", "file", "text"},
+    "hash_file": {"hash", "checksum", "file"},
+    "file_info": {"inspect", "information", "details", "file"},
+    "list_folder": {"list", "show", "folder", "directory", "files"},
+    "read_screen": {"read", "screen", "display", "text", "ocr"},
+    "analyse_image": {"analyze", "image", "photo", "picture"},
+    "generate_image": {"create", "generate", "draw", "image"},
+    "generate_video": {"create", "generate", "video"},
+    "camera_record": {"record", "camera", "video"},
+    "desktop_overview": {"show", "overview", "desktop", "windows"},
+    "cursor_position": {"get", "where", "pointer", "position"},
+    "move_cursor": {"move", "pointer", "cursor"},
+    "system_status": {"show", "system", "status", "overview"},
+    "battery_status": {"show", "battery", "status", "power"},
+    "network_status": {"show", "network", "status", "connection"},
+    "disk_volumes": {"show", "disk", "drive", "storage"},
+    "uptime_status": {"show", "uptime", "running", "time"},
+    "top_processes": {"show", "list", "process", "running", "app"},
+    "process_summary": {"show", "summarize", "process", "running"},
+    "python_environment": {"inspect", "python", "environment", "packages"},
+    "check_code": {"check", "review", "debug", "code"},
+    "validate_json_file": {"validate", "check", "json", "file"},
+    "dns_lookup": {"lookup", "resolve", "dns", "domain"},
+    "generate_uuid": {"generate", "create", "uuid", "identifier"},
+    "current_datetime": {"show", "current", "date", "time"},
+    "hello_webster": {"hello", "greet", "webster"},
+    "clipboard_copy": {"copy", "clipboard", "text"},
+    "volume_up": {"increase", "raise", "volume", "sound"},
+    "volume_down": {"decrease", "lower", "volume", "sound"},
+    "volume_mute": {"mute", "silence", "volume", "sound"},
+    "media_play_pause": {"play", "pause", "media", "music"},
+    "media_next": {"next", "skip", "media", "track"},
+    "media_previous": {"previous", "back", "media", "track"},
+    "lock_screen": {"lock", "screen", "computer"},
+    "close_app": {"close", "quit", "exit", "app", "window"},
+    "minimize_window": {"minimize", "window"},
+    "maximize_window": {"maximize", "window"},
+    "switch_window": {"switch", "change", "window"},
+    "open_settings": {"open", "settings", "configuration"},
+    "home_assistant": {"control", "home", "assistant", "device"},
+    "create_code_project": {"create", "project", "code", "programming"},
+    "analyse_image": {"describe", "analyze", "image", "photo"},
+}
+
+_INTENT_WORDS = {
+    "create", "open", "display", "read", "search", "delete", "rename",
+    "move", "copy", "calculate", "multiply", "add", "subtract", "divide",
+    "record", "analyze", "generate", "check", "review", "extract",
+    "compress", "play", "pause", "mute", "lock", "switch", "maximize",
+    "minimize", "convert", "validate", "inspect", "list", "increase",
+    "decrease", "close", "visit", "lookup", "resolve", "count", "compare",
+    "append", "write", "control", "describe", "greet",
+}
+
+_PHRASE_REWRITES = (
+    (r"\bhow much time has .*? been running\b", "show uptime"),
+    (r"\bwhat(?:'s| is) on my screen\b", "read screen"),
+    (r"\bread what(?:'s| is) on my screen\b", "read screen"),
+    (r"\bopen up\b", "open"),
+    (r"\bfire up\b", "open"),
+    (r"\bturn (?:the )?volume up\b", "increase volume"),
+    (r"\bturn (?:the )?volume down\b", "decrease volume"),
+    (r"\bturn (?:the )?sound off\b", "mute volume"),
+    (r"\bmake me a\b", "create a"),
+    (r"\bwhat is\b", "calculate"),
+)
+
+
+def _canonical_words(value: str) -> list[str]:
+    text = (value or "").lower().replace("’", "'")
+    for pattern, replacement in _PHRASE_REWRITES:
+        text = re.sub(pattern, replacement, text)
+    raw = re.findall(r"[a-z][a-z0-9_'-]*|[0-9]+(?:\.[0-9]+)?", text)
+    words: list[str] = []
+    for word in raw:
+        word = word.strip("'-")
+        if not word or word in _STOP or word.isdigit():
+            continue
+        if word.endswith("ies") and len(word) > 4:
+            word = word[:-3] + "y"
+        elif word.endswith("ing") and len(word) > 5:
+            word = word[:-3]
+        elif word.endswith("ed") and len(word) > 4:
+            word = word[:-2]
+        elif word.endswith("s") and len(word) > 4 and not word.endswith("ss"):
+            word = word[:-1]
+        words.append(_SYNONYMS.get(word, word))
+    return words
+
+
+def _unique(words: Iterable[str]) -> set[str]:
+    return set(words)
 
 
 def _argument_tail(query: str, action_id: str) -> str:
-    """Remove the natural-language intent prefix, preserving the user's data."""
-    # Convert common folder-creation language into an explicit path. This is
-    # still only a proposal: the action is shown to the user before execution.
+    """Extract a conservative argument tail; never invent missing values."""
+    if action_id == "calculate":
+        expression = query.strip()
+        expression = re.sub(
+            r"^(?:please\s+)?(?:calculate|compute|solve|what\s+is)\s+",
+            "", expression, flags=re.I,
+        )
+        for pattern, symbol in (
+            (r"\bmultiplied\s+by\b|\btimes\b", "*"),
+            (r"\bdivided\s+by\b|\bover\b", "/"),
+            (r"\bplus\b", "+"),
+            (r"\bminus\b", "-"),
+            (r"\bmod(?:ulo)?\b", "%"),
+        ):
+            expression = re.sub(pattern, symbol, expression, flags=re.I)
+        return expression.strip(" ?")
+
     if action_id == "create_folder":
         match = re.search(
-            r"(?:folder|directory)(?:\s+(?:called|named|for))?\s+(.+?)(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
-            query,
-            re.IGNORECASE,
+            r"\b(?:folder|directory)\b(?:\s+(?:called|named|for))?\s+(.+?)"
+            r"(?:\s+(?:on|in)\s+(?:my\s+)?(desktop|documents|downloads))?$",
+            query, re.I,
         )
         if match:
-            name = re.sub(r"^my\s+", "", match.group(1).strip(" \t:,-'\""), flags=re.I)
+            name = match.group(1).strip(" \t:,-'\"")
             location = (match.group(2) or "").lower()
+            name = re.sub(r"^(?:called|named|for)\s+", "", name, flags=re.I)
             if name:
-                if location:
-                    return f"~/{location.title()}/{name}"
-                if re.search(r"\b(?:called|named)\b", query, re.I):
-                    return name
-    if action_id == "calculate":
-        match = re.search(r"(?:calculate|compute|solve)\s+(.+)$", query, re.I)
-        if match:
-            expression = match.group(1).strip()
-            replacements = (
-                (r"\bmultiplied\s+by\b|\btimes\b", "*"),
-                (r"\bdivided\s+by\b|\bover\b", "/"),
-                (r"\bplus\b", "+"),
-                (r"\bminus\b", "-"),
-                (r"\bmod(?:ulo)?\b", "%"),
-            )
-            for pattern, symbol in replacements:
-                expression = re.sub(pattern, symbol, expression, flags=re.I)
-            return expression.strip()
+                return f"~/{location.title()}/{name}" if location else name
 
-    words = action_id.replace("_", " ")
-    patterns = [
-        rf"\b{re.escape(words)}\b",
-        rf"\b{re.escape(action_id)}\b",
-    ]
-    synonyms = {
-        "create_folder": r"(?:make|build|create)\s+(?:a\s+)?(?:new\s+)?(?:folder|directory)",
-        "calculate": r"(?:calculate|compute|solve|what\s+is)\b",
-        "open_app": r"(?:open|launch|start|run)\s+",
-        "read_screen": r"(?:read|show|inspect)\s+(?:my\s+)?screen",
-        "camera_record": r"(?:record|film|capture)\s+(?:a\s+)?(?:video|clip)?\s*(?:from\s+)?(?:my\s+)?camera",
-        "check_code": r"(?:check|review|debug|inspect)\s+(?:my\s+)?code",
-        "analyse_image": r"(?:analy[sz]e|inspect|describe)\s+(?:this\s+)?(?:image|picture|photo)",
-        "generate_image": r"(?:generate|create|draw)\s+(?:an?\s+)?(?:image|picture)",
-        "generate_video": r"(?:generate|create)\s+(?:a\s+)?video",
+    patterns = {
+        "open_app": r"\b(?:open|launch|start|run|fire\s+up|bring\s+up)\s+(.+)$",
+        "open_website": r"\b(?:open|visit|go\s+to)\s+(.+)$",
+        "search_files": r"\b(?:find|search|locate)\s+(.+)$",
+        "read_text_file": r"\b(?:read|show|open)\s+(.+)$",
+        "check_code": r"\b(?:check|review|debug|inspect)\s+(?:my\s+)?code\s*(.*)$",
+        "generate_image": r"\b(?:generate|create|draw)\s+(?:an?\s+)?image\s*(.*)$",
+        "generate_video": r"\b(?:generate|create)\s+(?:an?\s+)?video\s*(.*)$",
+        "camera_record": r"\b(?:record|film|capture)\s+(?:a\s+)?(?:video|clip)?\s*(?:from\s+)?(?:my\s+)?camera\s*(.*)$",
+        "analyse_image": r"\b(?:analy[sz]e|describe|inspect)\s+(?:this\s+)?(?:image|picture|photo)\s*(.*)$",
+        "create_text_file": r"\b(?:create|make|write)\s+(?:a\s+)?(?:text\s+)?file\s*(.*)$",
+        "delete_file": r"\b(?:delete|remove)\s+(?:the\s+)?file\s*(.*)$",
     }
-    if action_id in synonyms:
-        patterns.insert(0, synonyms[action_id])
-    for pattern in patterns:
-        match = re.search(pattern, query, re.IGNORECASE)
+    pattern = patterns.get(action_id)
+    if pattern:
+        match = re.search(pattern, query, re.I)
         if match:
-            return query[match.end():].strip(" \t:,-")
-    # Some natural phrasings put the request before the object ("please create
-    # a folder called X"). Strip polite lead-in and intent verbs as a fallback.
-    tail = re.sub(r"^(?:hey\s+webster[, ]*|please\s+|can you\s+|could you\s+|would you\s+)+", "", query, flags=re.I)
-    tail = re.sub(r"^(?:make|build|create|open|launch|start|run|read|show|find|search|check|review|calculate|compute|delete|remove|copy|move|rename)\s+", "", tail, flags=re.I)
-    return tail.strip(" \t:,-")
+            return match.group(1).strip(" \t:,-'\"")
+    return ""
 
 
 class OfflineActionRouter:
-    """Rank installed action metadata against natural-language requests."""
+    """Rank action metadata with weighted intent/object matching and abstention."""
 
-    def __init__(self, minimum_score: float = 0.28, ambiguity_gap: float = 0.10):
+    def __init__(
+        self,
+        minimum_score: float = 0.34,
+        ambiguity_gap: float = 0.09,
+    ) -> None:
         self.minimum_score = minimum_score
         self.ambiguity_gap = ambiguity_gap
 
     def route(self, query: str, actions: Iterable[object]) -> ActionIntent | None:
-        request = _tokens(query)
+        query_words = _canonical_words(query)
+        request = _unique(query_words)
         if not request:
             return None
+
         ranked: list[tuple[float, object]] = []
-        intent_verbs = {
-            "create", "open", "display", "read", "search", "delete",
-            "rename", "move", "copy", "calculate", "record", "analyze",
-            "generate", "check", "review", "extract", "compress", "play",
-            "pause", "mute", "lock", "switch", "maximize", "minimize",
-            "convert", "validate", "inspect", "get", "where",
-        }
         for action in actions:
-            action_id = str(getattr(action, "action_id", ""))
-            description = str(getattr(action, "description", ""))
+            action_id = str(getattr(action, "action_id", "")).strip().lower()
+            description = str(getattr(action, "description", "")).strip()
             if not action_id:
                 continue
-            id_words = set(action_id.replace("_", " ").split())
-            metadata = _tokens(description) | _tokens(action_id.replace("_", " "))
-            metadata |= _INTENT_TERMS.get(action_id, set())
-            # Intent/action words matter more than incidental description words.
-            overlap = request & metadata
-            if not overlap:
+
+            id_terms = _unique(_canonical_words(action_id.replace("_", " ")))
+            desc_terms = _unique(_canonical_words(description))
+            curated = _ACTION_TERMS.get(action_id, set())
+            metadata = id_terms | desc_terms | curated
+            matched = request & metadata
+            if not matched:
                 continue
-            # A lone noun ("screen", "battery", "folder") is not enough to
-            # infer an action. Require an intent verb or a two-term match.
-            if len(overlap) < 2 and not (request & intent_verbs):
-                continue
-            precision = len(overlap) / max(1, len(request))
-            recall = len(overlap) / max(1, len(metadata))
-            score = (0.72 * precision) + (0.28 * recall)
-            if request & id_words:
-                score += 0.18
-            # Reward a direct intent+object pair, not just a generic verb.
-            if len(overlap) >= 2:
-                score += 0.08
+
+            # A generic verb or noun alone is not enough to select an action.
+            intent_hits = matched & _INTENT_WORDS
+            object_hits = matched - _INTENT_WORDS
+            if not intent_hits or not object_hits:
+                # An exact action-name phrase is a valid exception.
+                exact_id = action_id.replace("_", " ")
+                if exact_id not in query.lower():
+                    continue
+
+            # Prefer distinctive action-ID and curated terms over generic
+            # words buried in long descriptions.
+            id_hits = matched & id_terms
+            curated_hits = matched & curated
+            intent_score = min(len(intent_hits), 2) * 0.19
+            object_score = min(len(object_hits), 3) * 0.16
+            id_bonus = min(len(id_hits), 2) * 0.12
+            curated_bonus = min(len(curated_hits), 3) * 0.08
+            coverage = len(matched) / max(1, len(request))
+            score = intent_score + object_score + id_bonus + curated_bonus
+            score += min(coverage, 1.0) * 0.16
+
+            # Penalize a match that only comes from generic description words.
+            if not id_hits and not curated_hits:
+                score *= 0.72
+            # A request containing a distinctive action ID should win cleanly.
+            if exact_id := (action_id.replace("_", " ") in query.lower()):
+                score += 0.20
             ranked.append((min(score, 1.0), action))
-        ranked.sort(key=lambda item: item[0], reverse=True)
+
+        ranked.sort(key=lambda pair: pair[0], reverse=True)
         if not ranked or ranked[0][0] < self.minimum_score:
             return None
+
         best_score, best = ranked[0]
         alternatives = tuple(
-            (str(getattr(item, "action_id", "")), round(score, 3))
+            (str(item.action_id), round(score, 3))
             for score, item in ranked[1:4]
+            if score >= self.minimum_score
         )
         if alternatives and best_score - alternatives[0][1] < self.ambiguity_gap:
-            return ActionIntent("", "", best_score, alternatives=((str(best.action_id), round(best_score, 3)),) + alternatives)
-        action_id = str(getattr(best, "action_id", ""))
-        arguments = _argument_tail(query, action_id)
-        return ActionIntent(action_id, arguments, round(best_score, 3), alternatives)
+            return ActionIntent(
+                "",
+                "",
+                round(best_score, 3),
+                alternatives=((str(best.action_id), round(best_score, 3)),) + alternatives,
+            )
+
+        action_id = str(best.action_id)
+        return ActionIntent(
+            action_id=action_id,
+            arguments=_argument_tail(query, action_id),
+            score=round(best_score, 3),
+            alternatives=alternatives,
+        )
