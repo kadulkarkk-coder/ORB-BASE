@@ -159,6 +159,7 @@ class CommandRouter:
         self._memory = memory_provider
         self._gyaan = gyaan_provider
         self._actions = action_provider
+        self._pending_action_context: tuple[str, str] | None = None
 
     # -----------------------------------------------------------------
     # PUBLIC API
@@ -233,6 +234,10 @@ class CommandRouter:
     def _route_actions(self, raw_query: str) -> CommandResult | None:
         """Resolve natural language to an installed action without cloud AI."""
         query = raw_query.strip()
+        if query.casefold() in {"cancel", "never mind", "nevermind"} and self._pending_action_context:
+            self._pending_action_context = None
+            return CommandResult(True, "Action request cancelled.")
+
         if query.casefold() in {"actions", "list actions", "show actions"}:
             return self._cmd_list_actions()
 
@@ -267,6 +272,25 @@ class CommandRouter:
         if not available:
             return None
 
+        # Continue a clarification turn before trying to classify it as a new request.
+        if self._pending_action_context is not None:
+            pending_id, original_query = self._pending_action_context
+            combined_query = f"{original_query} {query}".strip()
+            pending_router = OfflineActionRouter()
+            arguments = pending_router.extract_arguments(combined_query, pending_id)
+            if not arguments:
+                return CommandResult(
+                    True,
+                    f"I still need the details for '{pending_id}'. "
+                    "Please provide the missing name, path, file, app, or description.",
+                    level="warn",
+                    speak=False,
+                )
+            self._pending_action_context = None
+            if len(arguments) > 2048 or any(ch in arguments for ch in "\\r\\n\\x00"):
+                return CommandResult(True, "The extracted action details are invalid or too long.", level="warn")
+            return self._cmd_run_action(pending_id, arguments)
+
         intent = OfflineActionRouter().route(query, available)
         if intent is None:
             return None
@@ -292,6 +316,33 @@ class CommandRouter:
                 True,
                 "The extracted action details must be a single line of at most 2048 characters.",
                 level="warn",
+            )
+        required_arguments = {
+            "create_folder", "create_text_file", "open_app", "open_website",
+            "search_files", "read_text_file", "check_code", "generate_image",
+            "generate_video", "camera_record", "analyse_image", "delete_file",
+        }
+        if intent.action_id in required_arguments and not arguments:
+            self._pending_action_context = (intent.action_id, query)
+            prompts = {
+                "create_folder": "What should I name the folder, and where should I put it?",
+                "create_text_file": "What should the text file be called or contain?",
+                "open_app": "Which application should I open?",
+                "open_website": "Which website should I open?",
+                "search_files": "What file or filename should I search for?",
+                "read_text_file": "Which text file should I read?",
+                "check_code": "Please provide the code or its file path.",
+                "generate_image": "Describe the image you want to create.",
+                "generate_video": "Describe the video you want to create.",
+                "camera_record": "How long should the camera recording be?",
+                "analyse_image": "Which image should I analyse?",
+                "delete_file": "Which file do you want to delete?",
+            }
+            return CommandResult(
+                True,
+                prompts.get(intent.action_id, "Please provide the missing details."),
+                level="assistant",
+                speak=False,
             )
         return self._cmd_run_action(intent.action_id, arguments)
 
