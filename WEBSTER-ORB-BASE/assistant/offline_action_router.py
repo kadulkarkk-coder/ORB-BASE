@@ -83,7 +83,7 @@ _ACTION_TERMS: dict[str, set[str]] = {
     "create_zip_archive": {"create", "compress", "zip", "archive"},
     "extract_zip_archive": {"extract", "unzip", "zip", "archive"},
     "inspect_zip_archive": {"inspect", "list", "zip", "archive"},
-    "calculate": {"calculate", "math", "solve", "expression"},
+    "calculate": {"calculate", "math", "solve", "expression", "multiply", "add", "subtract", "divide"},
     "convert_units": {"convert", "unit", "measurement"},
     "word_count": {"count", "word", "words", "text"},
     "text_statistics": {"analyze", "statistics", "text"},
