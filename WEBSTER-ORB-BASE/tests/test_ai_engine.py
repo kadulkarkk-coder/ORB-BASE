@@ -82,6 +82,31 @@ class TestGeminiEngine(unittest.TestCase):
         )
         self.assertEqual(captured["contents"][-1].parts[0].text, "Current question")
 
+    def test_create_engine_selects_local_llama_when_available(self):
+        from types import SimpleNamespace
+        with patch.object(config.AI, "provider", "llama"), patch(
+            "assistant.local_llama_engine.LlamaCppEngine",
+            return_value=SimpleNamespace(available=True),
+        ) as engine_class:
+            engine = create_engine()
+
+        engine_class.assert_called_once()
+        self.assertTrue(engine.available)
+
+    def test_local_llama_unavailable_uses_offline_not_cloud(self):
+        from types import SimpleNamespace
+        with patch.object(config.AI, "provider", "llama"), patch(
+            "assistant.local_llama_engine.LlamaCppEngine",
+            return_value=SimpleNamespace(
+                available=False,
+                unavailable_reason="Local model is missing.",
+            ),
+        ):
+            engine = create_engine()
+
+        self.assertIsInstance(engine, OfflineEngine)
+        self.assertEqual(engine.reason, "Local model is missing.")
+
     def test_create_engine_selects_gemini_when_configured(self):
         with patch.object(config.AI, "provider", "gemini"), patch(
             "config.gemini_api_key", return_value="test-key"
