@@ -17,7 +17,7 @@ cp .env.example .env      # then fill in your keys (optional)
 ```
 
 Everything except `PySide6` degrades gracefully: if the optional local Llama runtime or model is missing,
-WEBSTER uses its built-in offline engine; no microphone disables voice input, no `psutil` hides the telemetry gauges.
+WEBSTER uses its built-in offline engine. No microphone disables voice input; no `psutil` hides the telemetry gauges.
 
 ---
 
