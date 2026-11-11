@@ -340,6 +340,13 @@ class OfflineActionRouter:
 
         ranked.sort(key=lambda pair: pair[0], reverse=True)
         if not ranked or ranked[0][0] < self.minimum_score:
+            # A single meaningful token is not enough evidence of an action.
+            # In particular, semantic embeddings often associate generic
+            # nouns (for example "folder") with several action descriptions.
+            # Keep one-word inputs as clarification/search context, not commands.
+            if len(request) < 2:
+                return None
+
             # Semantic understanding is a fallback, never a prerequisite.
             # If the optional local model is unavailable, abstain safely.
             return self._semantic_route(query, list(actions))
