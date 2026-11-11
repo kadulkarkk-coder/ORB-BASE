@@ -71,14 +71,14 @@ class OfflineEngine(AIEngine):
             return AIResult("Online and standing by. How can I help?", self.name)
         if "who are you" in text or "your name" in text:
             return AIResult(
-                "I am JARVIS, running in local mode. Connect an API key for full reasoning.",
+                "I am JARVIS, running locally. My local language model is unavailable, so I am using the built-in offline engine.",
                 self.name,
             )
         if "thank" in text:
             return AIResult("Any time.", self.name)
         return AIResult(
             f"I can't reason about that in local mode — {self.reason} "
-            "Built-in commands, Smriti/Gyaan features, and reviewed local actions still work without an API key.",
+            "Built-in commands, Smriti/Gyaan features, and reviewed local actions still work completely offline.",
             self.name,
         )
 
