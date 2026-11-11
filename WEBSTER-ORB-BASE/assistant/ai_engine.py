@@ -451,6 +451,14 @@ def create_engine() -> AIEngine:
     reason, rather than an answer from a backend you did not choose.
     """
     provider = config.resolved_provider()
+    if provider == "llama":
+        # Optional local model. Missing runtime or weights means a deterministic
+        # local fallback — never a cloud or Ollama substitution.
+        from assistant.local_llama_engine import LlamaCppEngine
+        engine = LlamaCppEngine()
+        if not engine.available:
+            return OfflineEngine(engine.unavailable_reason)
+        return engine
     if provider == "gemini":
         problem = config.api_key_problem()
         return GeminiEngine() if problem is None else OfflineEngine(problem)
