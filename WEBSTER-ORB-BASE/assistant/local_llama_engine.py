@@ -7,6 +7,7 @@ WEBSTER's deterministic OfflineEngine instead.
 from __future__ import annotations
 
 import logging
+import threading
 from pathlib import Path
 
 import config
@@ -21,11 +22,15 @@ class LlamaCppEngine(AIEngine):
     name = "llama"
 
     def __init__(self) -> None:
-        self.model_path = Path(config.AI.local_model_path).expanduser()
+        raw_model_path = Path(config.AI.local_model_path).expanduser()
+        self.model_path = (
+            raw_model_path if raw_model_path.is_absolute()
+            else config.BASE_DIR / raw_model_path
+        )
         self._llama = None
         self._offline: OfflineEngine | None = None
         self._load_error: str | None = None
-        self._load_lock = __import__("threading").Lock()
+        self._load_lock = threading.Lock()
         self._runtime = None
 
         try:
