@@ -78,6 +78,19 @@ class TestOfflineActionRouter(unittest.TestCase):
         result = self.router.route("folder", self.actions)
         self.assertIsNone(result)
 
+    def test_single_generic_noun_does_not_call_semantic_matcher(self):
+        class SpySemanticMatcher:
+            called = False
+
+            def match(self, query, actions):
+                self.called = True
+                return ("create_folder", 0.99, ())
+
+        matcher = SpySemanticMatcher()
+        router = OfflineActionRouter(semantic_matcher=matcher)
+        self.assertIsNone(router.route("folder", self.actions))
+        self.assertFalse(matcher.called)
+
 
     def test_semantic_fallback_handles_unfamiliar_wording(self):
         class FakeSemanticMatcher:
