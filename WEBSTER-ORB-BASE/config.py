@@ -299,8 +299,8 @@ def resolved_provider() -> str:
         "google-gemini": "gemini",
         "gpt": "openai",
         "chatgpt": "openai",
-        "local-llm": "ollama",
-        "llama": "ollama",
+        "local-llm": "llama",
+        "llama": "llama",
         "local": "llama",
         "none": "offline",
     }
