@@ -82,6 +82,10 @@ class TestGeminiEngine(unittest.TestCase):
         )
         self.assertEqual(captured["contents"][-1].parts[0].text, "Current question")
 
+    def test_local_provider_alias_resolves_to_llama_not_ollama(self):
+        with patch.object(config.AI, "provider", "local"):
+            self.assertEqual(config.resolved_provider(), "llama")
+
     def test_create_engine_selects_local_llama_when_available(self):
         from types import SimpleNamespace
         with patch.object(config.AI, "provider", "llama"), patch(
