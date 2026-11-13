@@ -112,6 +112,7 @@ class AssistantManager(QObject):
 
         self.router = CommandRouter(
             stats_provider=stats_provider,
+            action_planner=getattr(self.ai, "plan_action", None),
         )
 
         # Assistant state
