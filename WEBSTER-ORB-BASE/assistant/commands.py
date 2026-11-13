@@ -261,7 +261,7 @@ class CommandRouter:
     # -----------------------------------------------------------------
 
     def _route_actions(self, raw_query: str) -> CommandResult | None:
-        """Resolve natural language to an installed action without cloud AI."""
+        """Resolve natural language locally; a model may propose, but never execute, an action."""
         query = raw_query.strip()
         if query.casefold() in {"cancel", "never mind", "nevermind"} and self._pending_action_context:
             self._pending_action_context = None
