@@ -102,6 +102,18 @@ _APPS: tuple[AppTarget, ...] = (
 )
 
 
+_ACTION_REQUEST_RE = re.compile(
+    r"\\b(?:please|can you|could you|would you|help me|i need|i want|"
+    r"make|create|build|write|append|read|open|launch|start|run|find|search|"
+    r"locate|move|copy|rename|delete|remove|organize|tidy|sort|arrange|"
+    r"calculate|compute|convert|check|review|debug|inspect|analy[sz]e|"
+    r"generate|draw|record|capture|play|pause|mute|increase|decrease|"
+    r"close|minimize|maximize|switch|show|list|extract|compress|validate|"
+    r"lookup|resolve|control|compare|count)\\b",
+    re.IGNORECASE,
+)
+
+
 def _squash(text: str) -> str:
     """Normalize spoken or typed application names."""
     return re.sub(r"[^a-z0-9]+", "", text.lower())
@@ -153,12 +165,14 @@ class CommandRouter:
         memory_provider: object | None = None,
         gyaan_provider: object | None = None,
         action_provider: object | None = None,
+        action_planner: Callable[[str, list[object]], object | None] | None = None,
     ) -> None:
         self._stats = stats_provider or (lambda: None)
         self._engine_name = engine_name or (lambda: "unknown")
         self._memory = memory_provider
         self._gyaan = gyaan_provider
         self._actions = action_provider
+        self._action_planner = action_planner
         self._pending_action_context: tuple[str, str] | None = None
 
     # -----------------------------------------------------------------
@@ -176,6 +190,13 @@ class CommandRouter:
     def set_action_provider(self, action_provider: object | None) -> None:
         """Attach or replace the reviewed action provider."""
         self._actions = action_provider
+
+    def set_action_planner(
+        self,
+        action_planner: Callable[[str, list[object]], object | None] | None,
+    ) -> None:
+        """Attach a local model planner; its output is always validated here."""
+        self._action_planner = action_planner
 
     def route(self, text: str) -> CommandResult:
         raw_query = (text or "").strip().rstrip("?!.")
@@ -291,7 +312,24 @@ class CommandRouter:
                 return CommandResult(True, "The extracted action details are invalid or too long.", level="warn")
             return self._cmd_run_action(pending_id, arguments)
 
+        # Deterministic routing remains first. If it abstains, an optional
+        # local LLM may propose a structured intent for natural paraphrases.
         intent = OfflineActionRouter().route(query, available)
+        if intent is None and self._action_planner is not None and _ACTION_REQUEST_RE.search(query):
+            try:
+                proposal = self._action_planner(query, available)
+            except Exception:
+                proposal = None
+            allowed_ids = {item.action_id for item in available}
+            if (
+                proposal is not None
+                and getattr(proposal, "action_id", None) in allowed_ids
+                and isinstance(getattr(proposal, "arguments", None), str)
+                and len(proposal.arguments) <= 2048
+                and not any(ch in proposal.arguments for ch in "\\r\\n\\x00")
+            ):
+                intent = proposal
+
         if intent is None:
             return None
 
