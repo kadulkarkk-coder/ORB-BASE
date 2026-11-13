@@ -2,9 +2,9 @@
 
 `AIEngine` is the seam: the GUI only ever calls `process()`, so a different
 model or a local runtime can be dropped in without touching the interface.
-Gemini and OpenAI use their official SDKs; Ollama uses its
-OpenAI-compatible endpoint; Claude is an optional Anthropic backend; and
-offline mode keeps local commands usable when no provider is configured.
+Llama.cpp runs an optional local GGUF model and can propose structured action
+intents. Gemini/OpenAI/Claude and Ollama remain optional integrations; the
+built-in offline engine keeps deterministic local commands usable without them.
 """
 
 from __future__ import annotations
@@ -37,6 +37,13 @@ class AIEngine(abc.ABC):
     @abc.abstractmethod
     def process(self, prompt: str, history: list[Turn] | None = None) -> AIResult:
         """Answer `prompt`. Called on a worker thread — may block."""
+
+    def plan_action(self, query: str, actions: list[object]):
+        """Optionally propose a structured action intent; never execute anything.
+
+        Backends without local action-planning support abstain by returning None.
+        """
+        return None
 
     @property
     def available(self) -> bool:
@@ -71,14 +78,14 @@ class OfflineEngine(AIEngine):
             return AIResult("Online and standing by. How can I help?", self.name)
         if "who are you" in text or "your name" in text:
             return AIResult(
-                "I am JARVIS, running in local mode. Connect an API key for full reasoning.",
+                "I am JARVIS, running locally. My local language model is unavailable, so I am using the built-in offline engine.",
                 self.name,
             )
         if "thank" in text:
             return AIResult("Any time.", self.name)
         return AIResult(
             f"I can't reason about that in local mode — {self.reason} "
-            "Built-in commands, Smriti/Gyaan features, and reviewed local actions still work without an API key.",
+            "Built-in commands, Smriti/Gyaan features, and reviewed local actions still work completely offline.",
             self.name,
         )
 
@@ -451,6 +458,14 @@ def create_engine() -> AIEngine:
     reason, rather than an answer from a backend you did not choose.
     """
     provider = config.resolved_provider()
+    if provider == "llama":
+        # Optional local model. Missing runtime or weights means a deterministic
+        # local fallback — never a cloud or Ollama substitution.
+        from assistant.local_llama_engine import LlamaCppEngine
+        engine = LlamaCppEngine()
+        if not engine.available:
+            return OfflineEngine(engine.unavailable_reason)
+        return engine
     if provider == "gemini":
         problem = config.api_key_problem()
         return GeminiEngine() if problem is None else OfflineEngine(problem)

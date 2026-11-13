@@ -1,5 +1,6 @@
 """Focused tests for WEBSTER's dependency-free intent classifier."""
 import unittest
+from unittest.mock import patch
 from types import SimpleNamespace
 
 from assistant.offline_action_router import OfflineActionRouter
@@ -91,6 +92,22 @@ class TestOfflineActionRouter(unittest.TestCase):
         self.assertIsNone(router.route("folder", self.actions))
         self.assertFalse(matcher.called)
 
+
+    def test_no_semantic_dependency_is_imported_implicitly(self):
+        import builtins
+        original_import = builtins.__import__
+
+        def guarded_import(name, *args, **kwargs):
+            if name == "assistant.local_semantic":
+                raise AssertionError("offline routing must not auto-load/download embeddings")
+            return original_import(name, *args, **kwargs)
+
+        with patch("builtins.__import__", side_effect=guarded_import):
+            result = OfflineActionRouter().route(
+                "prepare a new workspace container",
+                self.actions,
+            )
+        self.assertIsNone(result)
 
     def test_semantic_fallback_handles_unfamiliar_wording(self):
         class FakeSemanticMatcher:

@@ -1,10 +1,10 @@
 """Controlled command system.
 
-Safety model: the assistant never executes free text. Every action is a named
-Python handler behind an explicit pattern match, arguments are validated, and
-subprocesses are launched with argument lists (never `shell=True`). Anything
-with a visible side effect is marked `requires_confirmation` and only runs after
-the user explicitly confirms — AI-generated text can never trigger it directly.
+Safety model: the assistant never executes free text. Deterministic matching or
+an optional local model may propose a catalogued action ID and plain-text
+arguments. The router validates the proposal; Niyantrak gates execution. Model
+output is never treated as code, and subprocesses use argument lists (never
+`shell=True`). Side-effecting extension actions retain their approval gate.
 """
 
 from __future__ import annotations
@@ -24,7 +24,7 @@ import config
 from memory import SmritiError
 from knowledge import GyaanError
 from system.system_info import format_duration, host_info
-from assistant.offline_action_router import OfflineActionRouter
+from assistant.offline_action_router import ActionIntent, OfflineActionRouter
 
 
 @dataclass
@@ -102,6 +102,26 @@ _APPS: tuple[AppTarget, ...] = (
 )
 
 
+_ACTION_REQUEST_RE = re.compile(
+    r"\b(?:please|can you|could you|would you|help me|i need|i want|"
+    r"make|create|build|write|append|read|open|launch|start|run|find|search|"
+    r"locate|move|copy|rename|delete|remove|organize|tidy|sort|arrange|"
+    r"calculate|compute|convert|check|review|debug|inspect|analy[sz]e|"
+    r"generate|draw|record|capture|play|pause|mute|increase|decrease|"
+    r"close|minimize|maximize|switch|show|list|extract|compress|validate|"
+    r"lookup|resolve|control|compare|count)\b",
+    re.IGNORECASE,
+)
+
+
+def _arguments_are_grounded(query: str, arguments: str) -> bool:
+    """Reject model-supplied values that do not appear in the user's request."""
+    request_terms = set(re.findall(r"[a-z0-9]+", query.casefold()))
+    argument_terms = set(re.findall(r"[a-z0-9]+", arguments.casefold()))
+    argument_terms -= {"http", "https", "www"}
+    return argument_terms.issubset(request_terms)
+
+
 def _squash(text: str) -> str:
     """Normalize spoken or typed application names."""
     return re.sub(r"[^a-z0-9]+", "", text.lower())
@@ -153,12 +173,14 @@ class CommandRouter:
         memory_provider: object | None = None,
         gyaan_provider: object | None = None,
         action_provider: object | None = None,
+        action_planner: Callable[[str, list[object]], object | None] | None = None,
     ) -> None:
         self._stats = stats_provider or (lambda: None)
         self._engine_name = engine_name or (lambda: "unknown")
         self._memory = memory_provider
         self._gyaan = gyaan_provider
         self._actions = action_provider
+        self._action_planner = action_planner
         self._pending_action_context: tuple[str, str] | None = None
 
     # -----------------------------------------------------------------
@@ -176,6 +198,13 @@ class CommandRouter:
     def set_action_provider(self, action_provider: object | None) -> None:
         """Attach or replace the reviewed action provider."""
         self._actions = action_provider
+
+    def set_action_planner(
+        self,
+        action_planner: Callable[[str, list[object]], object | None] | None,
+    ) -> None:
+        """Attach a local model planner; its output is always validated here."""
+        self._action_planner = action_planner
 
     def route(self, text: str) -> CommandResult:
         raw_query = (text or "").strip().rstrip("?!.")
@@ -232,7 +261,7 @@ class CommandRouter:
     # -----------------------------------------------------------------
 
     def _route_actions(self, raw_query: str) -> CommandResult | None:
-        """Resolve natural language to an installed action without cloud AI."""
+        """Resolve natural language locally; a model may propose, but never execute, an action."""
         query = raw_query.strip()
         if query.casefold() in {"cancel", "never mind", "nevermind"} and self._pending_action_context:
             self._pending_action_context = None
@@ -291,7 +320,28 @@ class CommandRouter:
                 return CommandResult(True, "The extracted action details are invalid or too long.", level="warn")
             return self._cmd_run_action(pending_id, arguments)
 
+        # Deterministic routing remains first. If it abstains, an optional
+        # local LLM may propose a structured intent for natural paraphrases.
         intent = OfflineActionRouter().route(query, available)
+        if intent is None and self._action_planner is not None and _ACTION_REQUEST_RE.search(query):
+            try:
+                proposal = self._action_planner(query, available)
+            except Exception:
+                proposal = None
+            allowed_ids = {item.action_id for item in available}
+            if (
+                isinstance(proposal, ActionIntent)
+                and proposal.action_id in allowed_ids
+                and isinstance(proposal.arguments, str)
+                and len(proposal.arguments) <= 2048
+                and not any(ch in proposal.arguments for ch in "\r\n\x00")
+                and isinstance(proposal.score, (int, float))
+                and not isinstance(proposal.score, bool)
+                and 0.72 <= float(proposal.score) <= 1.0
+                and _arguments_are_grounded(query, proposal.arguments)
+            ):
+                intent = proposal
+
         if intent is None:
             return None
 

@@ -16,8 +16,8 @@ python -m pip install -r requirements.txt
 cp .env.example .env      # then fill in your keys (optional)
 ```
 
-Everything except `PySide6` degrades gracefully: no API key runs the offline engine,
-no microphone disables voice input, no `psutil` hides the telemetry gauges.
+Everything except `PySide6` degrades gracefully: if the optional local Llama runtime or model is missing,
+WEBSTER uses its built-in offline engine. No microphone disables voice input; no `psutil` hides the telemetry gauges.
 
 ---
 
@@ -107,21 +107,75 @@ Linux), or with ElevenLabs if you configure a key.
 
 ## AI engine
 
-`AIEngine` in `assistant/ai_engine.py` is the seam — implement `process()` and the whole
-UI works against it unchanged.
+`AIEngine` in `assistant/ai_engine.py` is the seam — the UI continues to use
+the same `process()` interface regardless of which local backend is active.
 
-- **`OfflineEngine`** — **the default**. No API key, account, network connection or
-  model download is needed for built-in commands, Smriti/Gyaan storage and reviewed
-  local actions. It does not pretend to be a general-purpose reasoning model.
-- **`OllamaEngine`** — optional local models through Ollama; a normal local Ollama
-  installation does not need a cloud API key.
-- **`GeminiEngine`**, **`OpenAIEngine`** and **`ClaudeEngine`** — optional cloud
-  reasoning providers that require their respective credentials.
+- **`LlamaCppEngine` — default.** Runs Llama 3.2 3B Instruct from a local GGUF
+  file using `llama-cpp-python`. Inference is on-device; Ollama is not required.
+- **`OfflineEngine` — automatic fallback.** Used if the optional Python runtime
+  or model file is missing, or if local model loading fails. It requires no API,
+  internet connection, Ollama server, or model download.
+- Gemini, OpenAI, Claude and Ollama adapters remain optional legacy integrations,
+  but the default `llama` provider never falls back to any of them.
 
-`JARVIS_AI_PROVIDER=offline` is the default. Set `JARVIS_AI_PROVIDER=auto` only if
-you explicitly want WEBSTER to select a configured cloud provider automatically.
-Naming a provider explicitly never silently substitutes another — if it cannot run,
-WEBSTER falls back to the offline engine and reports the reason.
+### Set up local Llama 3.2 3B
+
+1. Install the optional runtime in the active virtual environment:
+
+   ```powershell
+   python -m pip install -r requirements-local.txt
+   ```
+
+2. Obtain a Llama 3.2 3B Instruct **GGUF** model file (Q4_K_M quantization is
+   the recommended starting point for this machine) and place it at:
+
+   ```text
+   models/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+   ```
+
+   Create the `models` folder if it does not exist. WEBSTER does not download
+   model weights automatically.
+
+3. In `.env`, select the local provider and model path:
+
+   ```env
+   JARVIS_AI_PROVIDER=llama
+   WEBSTER_LLAMA_MODEL=models/Llama-3.2-3B-Instruct-Q4_K_M.gguf
+   WEBSTER_LLAMA_CONTEXT=4096
+   WEBSTER_LLAMA_THREADS=3
+   ```
+
+If the runtime or model is unavailable, WEBSTER selects `OfflineEngine` and
+continues working locally. It does not attempt a cloud request or start Ollama.
+The first load of a 3B model can take a little time; inference runs on the CPU
+by default to keep compatibility with systems without a supported GPU backend.
+
+The built-in offline engine still handles deterministic commands, Smriti/Gyaan
+storage and reviewed local actions. It is a fallback, not a general-purpose LLM,
+so free-form reasoning is more limited when Llama cannot load.
+
+### Local action understanding
+
+The action pipeline uses two stages:
+
+1. The dependency-free `OfflineActionRouter` tries known phrases and argument
+   patterns first.
+2. If it abstains on an action-like request, `LlamaCppEngine.plan_action()` may
+   classify the request against the discovered action IDs and descriptions. It
+   returns constrained JSON (`action_id`, `arguments`, `confidence`) and must
+   choose an ID already present in the catalog. It cannot return code or execute
+   an action. Normal questions skip this planning step and go straight to chat.
+
+`CommandRouter` validates the proposal, asks for missing required details, and
+creates the normal action request. `Niyantrak` remains the final permission gate;
+this integration does not bypass the existing confirmation flow. If Llama is
+unavailable, the model planner abstains and the deterministic offline router
+continues to work.
+
+Offline action routing does not automatically load or download embedding models.
+The optional semantic matcher is used only when explicitly injected with a local
+model already prepared by the user. The GGUF model is also supplied manually;
+WEBSTER does not fetch model files in the background.
 
 ### Using Ollama
 

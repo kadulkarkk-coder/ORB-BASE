@@ -1,0 +1,3 @@
+# Optional local GGUF inference runtime. No Ollama or cloud API required.
+# Install separately; the built-in offline engine works without this dependency.
+llama-cpp-python>=0.3.8,<0.4

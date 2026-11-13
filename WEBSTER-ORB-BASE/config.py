@@ -193,10 +193,22 @@ MONITOR_INTERVAL_S = _env_float("JARVIS_MONITOR_INTERVAL", 1.5)
 # --- assistant --------------------------------------------------------------
 @dataclass
 class AIConfig:
-    # gemini | auto | openai | ollama | claude | offline
+    # llama | gemini | auto | openai | ollama | claude | offline
     provider: str = field(
-        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "offline")
+        default_factory=lambda: _env("JARVIS_AI_PROVIDER", "llama")
     )
+
+    # Local GGUF model settings. The model is never downloaded automatically.
+    local_model_path: Path = field(
+        default_factory=lambda: Path(_env(
+            "WEBSTER_LLAMA_MODEL",
+            str(BASE_DIR / "models" / "Llama-3.2-3B-Instruct-Q4_K_M.gguf"),
+        )).expanduser()
+    )
+    local_context_size: int = max(1024, int(_env_float("WEBSTER_LLAMA_CONTEXT", 4096)))
+    local_threads: int = max(1, int(_env_float(
+        "WEBSTER_LLAMA_THREADS", max(1, (os.cpu_count() or 4) - 1)
+    )))
 
     gemini_model: str = field(
         default_factory=lambda: _env("GEMINI_MODEL", "gemini-3.8-flash")
@@ -287,15 +299,15 @@ def resolved_provider() -> str:
         "google-gemini": "gemini",
         "gpt": "openai",
         "chatgpt": "openai",
-        "local-llm": "ollama",
-        "llama": "ollama",
-        "local": "offline",
+        "local-llm": "llama",
+        "llama": "llama",
+        "local": "llama",
         "none": "offline",
     }
 
     choice = aliases.get(choice, choice)
 
-    if choice in ("gemini", "openai", "ollama", "claude", "offline"):
+    if choice in ("llama", "gemini", "openai", "ollama", "claude", "offline"):
         return choice
 
     if choice == "auto":
@@ -338,7 +350,7 @@ def api_key_problem() -> str | None:
     if provider == "claude":
         return anthropic_key_problem()
 
-    if provider in ("ollama", "offline"):
+    if provider in ("llama", "ollama", "offline"):
         return None
 
     return f"Unsupported AI provider: {provider}"

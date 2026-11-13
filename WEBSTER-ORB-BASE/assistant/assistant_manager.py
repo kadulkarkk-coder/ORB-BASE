@@ -112,6 +112,7 @@ class AssistantManager(QObject):
 
         self.router = CommandRouter(
             stats_provider=stats_provider,
+            action_planner=getattr(self.ai, "plan_action", None),
         )
 
         # Assistant state
@@ -393,8 +394,8 @@ class AssistantManager(QObject):
         """
         Runs outside the UI thread.
 
-        First checks local commands, then sends unhandled prompts
-        to the selected AI provider.
+        First checks deterministic commands and the optional local action
+        planner, then sends unhandled prompts to the selected AI provider.
         """
 
         command = self.router.route(text)
