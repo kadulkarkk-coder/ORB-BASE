@@ -106,6 +106,23 @@ class TestLlamaStructuredPlanner(unittest.TestCase):
                 )
                 self.assertIsNone(result)
 
+    def test_malformed_plan_abstains_without_disabling_chat(self):
+        engine = LlamaCppEngine.__new__(LlamaCppEngine)
+        engine._offline = None
+        engine._llama = SimpleNamespace(
+            create_chat_completion=lambda **kwargs: {
+                "choices": [{"message": {"content": "not valid json"}}]
+            }
+        )
+
+        result = engine.plan_action(
+            "Please create a folder",
+            [SimpleNamespace(action_id="create_folder", description="Create folder.")],
+        )
+
+        self.assertIsNone(result)
+        self.assertIsNone(engine._offline)
+
     def test_model_error_switches_to_builtin_offline_engine(self):
         engine = LlamaCppEngine.__new__(LlamaCppEngine)
         engine._llama = None
