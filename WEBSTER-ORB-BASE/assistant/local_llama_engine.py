@@ -152,46 +152,6 @@ class LlamaCppEngine(AIEngine):
                 max_tokens=192,
                 response_format={"type": "json_object"},
             )
-            choices = response.get("choices") or []
-            raw = (
-                choices[0].get("message", {}).get("content", "")
-                if choices else ""
-            )
-            payload = json.loads(raw)
-            if not isinstance(payload, dict):
-                return None
-
-            action_id = payload.get("action_id")
-            if not isinstance(action_id, str) or action_id not in allowed_ids:
-                return None
-
-            arguments = payload.get("arguments", "")
-            if (
-                not isinstance(arguments, str)
-                or len(arguments) > 2048
-                or any(ch in arguments for ch in "\r\n\x00")
-            ):
-                return None
-
-            # Ground every proposed argument token in the user's own request.
-            # This prevents the model from inventing paths, filenames, or values.
-            request_terms = set(re.findall(r"[a-z0-9]+", query.casefold()))
-            argument_terms = set(__import__("re").findall(r"[a-z0-9]+", arguments.casefold()))
-            argument_terms -= {"http", "https", "www"}
-            if not argument_terms.issubset(request_terms):
-                return None
-
-            confidence = payload.get("confidence", 0)
-            if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
-                return None
-            if not 0.0 <= float(confidence) <= 1.0 or float(confidence) < 0.72:
-                return None
-
-            return ActionIntent(
-                action_id=action_id,
-                arguments=arguments.strip(),
-                score=float(confidence),
-            )
         except Exception as exc:
             reason = (
                 f"Local Llama action planning failed ({type(exc).__name__}); "
@@ -200,6 +160,51 @@ class LlamaCppEngine(AIEngine):
             logger.warning(reason)
             self._offline = OfflineEngine(reason)
             return None
+
+        choices = response.get("choices") or []
+        raw = (
+            choices[0].get("message", {}).get("content", "")
+            if choices else ""
+        )
+        try:
+            payload = json.loads(raw)
+        except (TypeError, ValueError):
+            # A malformed plan is an abstention, not a reason to disable chat.
+            return None
+        if not isinstance(payload, dict):
+            return None
+
+        action_id = payload.get("action_id")
+        if not isinstance(action_id, str) or action_id not in allowed_ids:
+            return None
+
+        arguments = payload.get("arguments", "")
+        if (
+            not isinstance(arguments, str)
+            or len(arguments) > 2048
+            or any(ch in arguments for ch in "\r\n\x00")
+        ):
+            return None
+
+        # Ground every proposed argument token in the user's own request.
+        # This prevents the model from inventing paths, filenames, or values.
+        request_terms = set(re.findall(r"[a-z0-9]+", query.casefold()))
+        argument_terms = set(re.findall(r"[a-z0-9]+", arguments.casefold()))
+        argument_terms -= {"http", "https", "www"}
+        if not argument_terms.issubset(request_terms):
+            return None
+
+        confidence = payload.get("confidence", 0)
+        if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
+            return None
+        if not 0.0 <= float(confidence) <= 1.0 or float(confidence) < 0.72:
+            return None
+
+        return ActionIntent(
+            action_id=action_id,
+            arguments=arguments.strip(),
+            score=float(confidence),
+        )
 
     def process(self, prompt: str, history: list[Turn] | None = None) -> AIResult:
         prompt = (prompt or "").strip()
