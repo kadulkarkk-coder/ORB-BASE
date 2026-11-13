@@ -172,6 +172,14 @@ class LlamaCppEngine(AIEngine):
             ):
                 return None
 
+            # Ground every proposed argument token in the user's own request.
+            # This prevents the model from inventing paths, filenames, or values.
+            request_terms = set(__import__("re").findall(r"[a-z0-9]+", query.casefold()))
+            argument_terms = set(__import__("re").findall(r"[a-z0-9]+", arguments.casefold()))
+            argument_terms -= {"http", "https", "www"}
+            if not argument_terms.issubset(request_terms):
+                return None
+
             confidence = payload.get("confidence", 0)
             if isinstance(confidence, bool) or not isinstance(confidence, (int, float)):
                 return None
