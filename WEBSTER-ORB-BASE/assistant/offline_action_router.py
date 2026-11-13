@@ -267,12 +267,9 @@ class OfflineActionRouter:
     def _semantic_route(self, query: str, actions: list[object]) -> ActionIntent | None:
         matcher = self.semantic_matcher
         if matcher is None:
-            try:
-                from assistant.local_semantic import LocalSemanticMatcher
-                matcher = LocalSemanticMatcher()
-                self.semantic_matcher = matcher
-            except Exception:
-                return None
+            # Never auto-download an embedding model in offline mode. A semantic
+            # matcher may be injected explicitly when its model is already local.
+            return None
         try:
             result = matcher.match(query, actions)
         except Exception:
