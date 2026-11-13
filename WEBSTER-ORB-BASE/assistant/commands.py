@@ -103,13 +103,13 @@ _APPS: tuple[AppTarget, ...] = (
 
 
 _ACTION_REQUEST_RE = re.compile(
-    r"\\b(?:please|can you|could you|would you|help me|i need|i want|"
+    r"\b(?:please|can you|could you|would you|help me|i need|i want|"
     r"make|create|build|write|append|read|open|launch|start|run|find|search|"
     r"locate|move|copy|rename|delete|remove|organize|tidy|sort|arrange|"
     r"calculate|compute|convert|check|review|debug|inspect|analy[sz]e|"
     r"generate|draw|record|capture|play|pause|mute|increase|decrease|"
     r"close|minimize|maximize|switch|show|list|extract|compress|validate|"
-    r"lookup|resolve|control|compare|count)\\b",
+    r"lookup|resolve|control|compare|count)\b",
     re.IGNORECASE,
 )
 
@@ -326,7 +326,7 @@ class CommandRouter:
                 and getattr(proposal, "action_id", None) in allowed_ids
                 and isinstance(getattr(proposal, "arguments", None), str)
                 and len(proposal.arguments) <= 2048
-                and not any(ch in proposal.arguments for ch in "\\r\\n\\x00")
+                and not any(ch in proposal.arguments for ch in "\r\n\x00")
             ):
                 intent = proposal
 
