@@ -80,7 +80,7 @@ class TestLlamaStructuredPlanner(unittest.TestCase):
         self.assertIsNone(result)
 
     def test_rejects_multiline_or_oversized_arguments(self):
-        for arguments in ("line one\\nline two", "x" * 2049):
+        for arguments in ("line one\nline two", "x" * 2049):
             with self.subTest(arguments_length=len(arguments)):
                 engine = self.make_engine({
                     "action_id": "create_folder",
@@ -117,9 +117,9 @@ class TestCommandRouterLlamaFallback(unittest.TestCase):
         self.folder = Path(self.temp_dir.name)
         self.manager = ActionManager(self.folder)
         (self.folder / "desktop_overview.py").write_text(
-            'ACTION_ID = "desktop_overview"\\n'
-            'DESCRIPTION = "Show an overview of desktop windows."\\n'
-            'def run(): return "overview ready"\\n',
+            'ACTION_ID = "desktop_overview"\n'
+            'DESCRIPTION = "Show an overview of desktop windows."\n'
+            'def run(): return "overview ready"\n',
             encoding="utf-8",
         )
 
