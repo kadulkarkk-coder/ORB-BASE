@@ -68,6 +68,18 @@ class TestLlamaStructuredPlanner(unittest.TestCase):
         )
         self.assertIsNone(result)
 
+    def test_rejects_invented_argument_values(self):
+        engine = self.make_engine({
+            "action_id": "create_folder",
+            "arguments": "SecretProject",
+            "confidence": 0.99,
+        })
+        result = engine.plan_action(
+            "Please make a folder",
+            [SimpleNamespace(action_id="create_folder", description="Create folder.")],
+        )
+        self.assertIsNone(result)
+
     def test_rejects_low_confidence(self):
         engine = self.make_engine({
             "action_id": "create_folder",
