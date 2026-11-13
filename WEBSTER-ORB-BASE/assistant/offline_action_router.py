@@ -257,7 +257,7 @@ class OfflineActionRouter:
     ) -> None:
         self.minimum_score = minimum_score
         self.ambiguity_gap = ambiguity_gap
-        # Lazy and optional: absence of FastEmbed never breaks offline commands.
+        # Explicit injection only: no embedding package or model is loaded automatically.
         self.semantic_matcher = semantic_matcher
 
     def extract_arguments(self, query: str, action_id: str) -> str:
