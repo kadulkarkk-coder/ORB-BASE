@@ -2,9 +2,9 @@
 
 `AIEngine` is the seam: the GUI only ever calls `process()`, so a different
 model or a local runtime can be dropped in without touching the interface.
-Gemini and OpenAI use their official SDKs; Ollama uses its
-OpenAI-compatible endpoint; Claude is an optional Anthropic backend; and
-offline mode keeps local commands usable when no provider is configured.
+Llama.cpp runs an optional local GGUF model and can propose structured action
+intents. Gemini/OpenAI/Claude and Ollama remain optional integrations; the
+built-in offline engine keeps deterministic local commands usable without them.
 """
 
 from __future__ import annotations
