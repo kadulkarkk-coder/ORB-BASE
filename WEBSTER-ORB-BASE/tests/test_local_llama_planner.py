@@ -2,6 +2,7 @@
 
 import json
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -99,7 +100,7 @@ class TestLlamaStructuredPlanner(unittest.TestCase):
         engine._offline = None
         engine._runtime = None
         engine._load_error = "test unavailable"
-        engine._load_lock = Mock()
+        engine._load_lock = threading.Lock()
 
         result = engine.plan_action(
             "Please create a folder",
