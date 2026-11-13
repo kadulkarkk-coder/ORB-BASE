@@ -168,7 +168,7 @@ class LlamaCppEngine(AIEngine):
             if (
                 not isinstance(arguments, str)
                 or len(arguments) > 2048
-                or any(ch in arguments for ch in "\\r\\n\\x00")
+                or any(ch in arguments for ch in "\r\n\x00")
             ):
                 return None
 
