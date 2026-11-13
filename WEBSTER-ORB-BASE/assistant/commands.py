@@ -1,10 +1,10 @@
 """Controlled command system.
 
-Safety model: the assistant never executes free text. Every action is a named
-Python handler behind an explicit pattern match, arguments are validated, and
-subprocesses are launched with argument lists (never `shell=True`). Anything
-with a visible side effect is marked `requires_confirmation` and only runs after
-the user explicitly confirms — AI-generated text can never trigger it directly.
+Safety model: the assistant never executes free text. Deterministic matching or
+an optional local model may propose a catalogued action ID and plain-text
+arguments. The router validates the proposal; Niyantrak gates execution. Model
+output is never treated as code, and subprocesses use argument lists (never
+`shell=True`). Side-effecting extension actions retain their approval gate.
 """
 
 from __future__ import annotations
