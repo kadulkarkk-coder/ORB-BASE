@@ -6,6 +6,7 @@ import threading
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
+from unittest.mock import Mock
 
 from assistant.commands import CommandRouter
 from assistant.local_llama_engine import LlamaCppEngine
