@@ -24,7 +24,7 @@ import config
 from memory import SmritiError
 from knowledge import GyaanError
 from system.system_info import format_duration, host_info
-from assistant.offline_action_router import OfflineActionRouter
+from assistant.offline_action_router import ActionIntent, OfflineActionRouter
 
 
 @dataclass
@@ -112,6 +112,14 @@ _ACTION_REQUEST_RE = re.compile(
     r"lookup|resolve|control|compare|count)\b",
     re.IGNORECASE,
 )
+
+
+def _arguments_are_grounded(query: str, arguments: str) -> bool:
+    """Reject model-supplied values that do not appear in the user's request."""
+    request_terms = set(re.findall(r"[a-z0-9]+", query.casefold()))
+    argument_terms = set(re.findall(r"[a-z0-9]+", arguments.casefold()))
+    argument_terms -= {"http", "https", "www"}
+    return argument_terms.issubset(request_terms)
 
 
 def _squash(text: str) -> str:
@@ -322,11 +330,15 @@ class CommandRouter:
                 proposal = None
             allowed_ids = {item.action_id for item in available}
             if (
-                proposal is not None
-                and getattr(proposal, "action_id", None) in allowed_ids
-                and isinstance(getattr(proposal, "arguments", None), str)
+                isinstance(proposal, ActionIntent)
+                and proposal.action_id in allowed_ids
+                and isinstance(proposal.arguments, str)
                 and len(proposal.arguments) <= 2048
                 and not any(ch in proposal.arguments for ch in "\r\n\x00")
+                and isinstance(proposal.score, (int, float))
+                and not isinstance(proposal.score, bool)
+                and 0.72 <= float(proposal.score) <= 1.0
+                and _arguments_are_grounded(query, proposal.arguments)
             ):
                 intent = proposal
 
