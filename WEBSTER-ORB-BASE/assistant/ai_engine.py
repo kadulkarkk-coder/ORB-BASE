@@ -38,6 +38,13 @@ class AIEngine(abc.ABC):
     def process(self, prompt: str, history: list[Turn] | None = None) -> AIResult:
         """Answer `prompt`. Called on a worker thread — may block."""
 
+    def plan_action(self, query: str, actions: list[object]):
+        """Optionally propose a structured action intent; never execute anything.
+
+        Backends without local action-planning support abstain by returning None.
+        """
+        return None
+
     @property
     def available(self) -> bool:
         return True
