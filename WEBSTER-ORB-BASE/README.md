@@ -154,6 +154,29 @@ The built-in offline engine still handles deterministic commands, Smriti/Gyaan
 storage and reviewed local actions. It is a fallback, not a general-purpose LLM,
 so free-form reasoning is more limited when Llama cannot load.
 
+### Local action understanding
+
+The action pipeline uses two stages:
+
+1. The dependency-free `OfflineActionRouter` tries known phrases and argument
+   patterns first.
+2. If it abstains on an action-like request, `LlamaCppEngine.plan_action()` may
+   classify the request against the discovered action IDs and descriptions. It
+   returns constrained JSON (`action_id`, `arguments`, `confidence`) and must
+   choose an ID already present in the catalog. It cannot return code or execute
+   an action. Normal questions skip this planning step and go straight to chat.
+
+`CommandRouter` validates the proposal, asks for missing required details, and
+creates the normal action request. `Niyantrak` remains the final permission gate;
+this integration does not bypass the existing confirmation flow. If Llama is
+unavailable, the model planner abstains and the deterministic offline router
+continues to work.
+
+Offline action routing does not automatically load or download embedding models.
+The optional semantic matcher is used only when explicitly injected with a local
+model already prepared by the user. The GGUF model is also supplied manually;
+WEBSTER does not fetch model files in the background.
+
 ### Using Ollama
 
 > **A local Ollama does not use an API key.** It is an unauthenticated HTTP server on
